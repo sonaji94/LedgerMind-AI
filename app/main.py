@@ -5,8 +5,8 @@ Creates and configures the FastAPI application instance,
 registers routers, middleware, and lifecycle events.
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
