@@ -30,7 +30,7 @@ def test_compute_amount_statistics() -> None:
     assert stats.p95 > stats.p75
 
 @pytest.mark.ml
-def test_profile_dataset_empty_check():
+def test_profile_dataset_empty_check() -> None:
     df = generate_synthetic_benchmark(
         n_samples=10,
         fraud_rate=0.0,

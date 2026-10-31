@@ -17,7 +17,7 @@ async def test_health_endpoint(client: AsyncClient) -> None:
     assert data["version"] == "0.1.0"
 
 @pytest.mark.unit
-async def test_health_environment_field(client: AsyncClient):
+async def test_health_environment_field(client: AsyncClient) -> None:
     response = await client.get("/health")
 
     assert response.status_code == 200

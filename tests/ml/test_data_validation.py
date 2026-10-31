@@ -75,7 +75,7 @@ def test_validation_fails_on_invalid_target_class() -> None:
 
 
 @pytest.mark.ml
-def test_validation_fails_on_negative_time():
+def test_validation_fails_on_negative_time() -> None:
     df = generate_synthetic_benchmark(n_samples=100)
     df.loc[0, "Time"] = -10.0
 
