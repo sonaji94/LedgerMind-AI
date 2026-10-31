@@ -1,0 +1,4 @@
+# Trained Model Artifacts
+# -----------------------
+# Serialized models (.joblib, .pkl, .pt) are git-ignored.
+# Only metadata and small config files should be committed.

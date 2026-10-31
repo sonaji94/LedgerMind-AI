@@ -1,0 +1,1 @@
+"""LedgerMind AI — Core package."""

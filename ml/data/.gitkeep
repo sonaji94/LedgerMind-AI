@@ -1,0 +1,5 @@
+# ML Data Directory
+# -----------------
+# Raw and processed datasets go here.
+# Raw data files are git-ignored — see .gitignore.
+# Add a README or data dictionary when you import a dataset.

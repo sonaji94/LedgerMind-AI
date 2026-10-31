@@ -1,0 +1,96 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# ========================
+# Virtual Environments
+# ========================
+.venv/
+venv/
+env/
+ENV/
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# ========================
+# IDE / Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ========================
+# Jupyter Notebooks
+# ========================
+.ipynb_checkpoints/
+*.ipynb_metadata/
+
+# ========================
+# ML Artifacts
+# ========================
+ml/models/*.joblib
+ml/models/*.pkl
+ml/models/*.pt
+ml/models/*.pth
+ml/models/*.onnx
+ml/data/raw/
+ml/data/processed/
+mlruns/
+mlflow.db
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ========================
+# Testing & Coverage
+# ========================
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# ========================
+# Alembic
+# ========================
+# Keep migration scripts, ignore temp
+migrations/versions/__pycache__/
+
+# ========================
+# Misc
+# ========================
+*.log
+*.tmp
+*.bak
+*.orig

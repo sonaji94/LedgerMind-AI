@@ -1,0 +1,55 @@
+# ============================================================
+# LedgerMind AI — Docker Compose
+# ============================================================
+# Services: PostgreSQL database + FastAPI application
+# Usage:
+#   docker compose up -d          # Start all services
+#   docker compose up -d db       # Start only PostgreSQL
+#   docker compose logs -f app    # Follow app logs
+#   docker compose down -v        # Stop and remove volumes
+# ============================================================
+
+services:
+  # ── PostgreSQL Database ──────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    container_name: ledgermind-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ledgermind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-ledgermind_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ledgermind}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Application ──────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ledgermind-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    ports:
+      - "${PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount ML models for hot-reload during development
+      - ./ml/models:/app/ml/models:ro
+
+volumes:
+  pgdata:
+    driver: local
