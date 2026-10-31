@@ -161,7 +161,7 @@ def generate_synthetic_benchmark(
     pca_data = rng.normal(loc=0.0, scale=1.0, size=(n_samples, 28))
     amounts = np.round(rng.exponential(scale=88.0, size=n_samples), 2)
 
-    n_fraud = max(1, int(n_samples * fraud_rate))
+    n_fraud = int(n_samples * fraud_rate)
     classes = np.zeros(n_samples, dtype=int)
     fraud_indices = rng.choice(n_samples, size=n_fraud, replace=False)
     classes[fraud_indices] = 1

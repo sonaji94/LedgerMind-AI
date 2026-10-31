@@ -68,7 +68,10 @@ mlflow.db
 docker-compose.override.yml
 
 # ========================
-# OS
+# Reports & Figures
+# ========================
+reports/figures/*.png
+reports/figures/*.pdf
 # ========================
 .DS_Store
 Thumbs.db

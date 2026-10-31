@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import matplotlib
+
 matplotlib.use("Agg")  # Non-interactive headless backend for automated scripts/CI
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    import pandas as pd
 
 
 @dataclass(frozen=True)
