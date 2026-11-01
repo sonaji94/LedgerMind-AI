@@ -11,7 +11,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.accounts.router import router as accounts_router
+from app.ai_assistant.router import router as ai_router
+from app.analytics.router import router as analytics_router
 from app.core.config import get_settings
+from app.fraud.router import router as fraud_router
+from app.fraud.service import FraudInferenceService
+from app.transactions.router import router as transfers_router
 
 
 @asynccontextmanager
@@ -20,6 +26,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Startup ──────────────────────────────────────────────
     settings = get_settings()
     print(f"🚀 Starting {settings.app_name} [{settings.app_env}]")
+    FraudInferenceService.load()
+    if FraudInferenceService.is_ready():
+        print("🧠 Loaded Fraud Detection Model & Preprocessor into memory.")
     yield
     # ── Shutdown ─────────────────────────────────────────────
     print(f"🛑 Shutting down {settings.app_name}")
@@ -51,16 +60,15 @@ def create_app() -> FastAPI:
     )
 
     # ── Routers ──────────────────────────────────────────────
-    # Registered progressively as modules are built:
-    #   app.include_router(accounts.router, prefix="/accounts", tags=["Accounts"])
-    #   app.include_router(transfers.router, prefix="/transfers", tags=["Transfers"])
-    #   app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
-    #   app.include_router(fraud.router, prefix="/fraud", tags=["Fraud Detection"])
-    #   app.include_router(ai_assistant.router, prefix="/ai", tags=["AI Assistant"])
+    app.include_router(accounts_router)
+    app.include_router(transfers_router)
+    app.include_router(fraud_router)
+    app.include_router(analytics_router)
+    app.include_router(ai_router)
 
     # ── Health Check ─────────────────────────────────────────
     @app.get("/health", tags=["System"])
-    async def health_check() -> dict:
+    async def health_check() -> dict[str, str]:
         return {
             "status": "healthy",
             "app": settings.app_name,
