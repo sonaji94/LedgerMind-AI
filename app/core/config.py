@@ -49,28 +49,18 @@ class Settings(BaseSettings):
     # Defaults to permissive for local development only.
     cors_origins: str = "*"
 
-    # ── PostgreSQL ────────────────────────────────────────────────
+    # ── Database ──────────────────────────────────────────────────
+    # If database_url is provided, it takes precedence.
+    # Set to sqlite+aiosqlite:///./ledgermind.db for zero-config local development.
+    database_url: str = ""
+    database_url_sync: str = ""
+    use_sqlite: bool = False
+
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_user: str = "ledgermind"
     postgres_password: str = "changeme"
     postgres_db: str = "ledgermind_db"
-
-    @property
-    def database_url(self) -> str:
-        """Async PostgreSQL connection string for SQLAlchemy."""
-        return (
-            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
-
-    @property
-    def database_url_sync(self) -> str:
-        """Sync PostgreSQL connection string (used by Alembic migrations)."""
-        return (
-            f"postgresql://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -87,12 +77,31 @@ class Settings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         """Block insecure placeholder keys in non-development environments."""
-        # Validation at the field level — environment check done in model_validator
         return v
 
     @model_validator(mode="after")
-    def enforce_production_security(self) -> "Settings":
-        """Raise at startup if production is configured with unsafe defaults."""
+    def resolve_database_and_security(self) -> "Settings":
+        """Resolve database URLs and enforce production security constraints."""
+        # 1. Resolve Database URLs
+        if self.use_sqlite:
+            self.database_url = "sqlite+aiosqlite:///./ledgermind.db"
+            self.database_url_sync = "sqlite:///./ledgermind.db"
+        elif not self.database_url:
+            self.database_url = (
+                f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+
+        if not self.database_url_sync:
+            if "sqlite" in self.database_url:
+                self.database_url_sync = self.database_url.replace("+aiosqlite", "")
+            else:
+                self.database_url_sync = (
+                    f"postgresql://{self.postgres_user}:{self.postgres_password}"
+                    f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+                )
+
+        # 2. Production Security Checks
         if self.app_env == "production":
             if self.secret_key in _INSECURE_DEFAULTS or len(self.secret_key) < 32:
                 raise ValueError(

@@ -19,12 +19,23 @@ from app.core.config import get_settings
 settings = get_settings()
 
 # ── Async Engine ─────────────────────────────────────────────────
+is_sqlite = settings.database_url.startswith("sqlite")
+engine_kwargs: dict[str, object] = {
+    "echo": settings.debug,
+}
+
+if is_sqlite:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_pre_ping": True,
+    })
+
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.debug,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
+    **engine_kwargs,  # type: ignore[arg-type]
 )
 
 # ── Session Factory ──────────────────────────────────────────────

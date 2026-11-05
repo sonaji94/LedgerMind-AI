@@ -42,16 +42,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("startup", app=settings.app_name, env=settings.app_env)
 
-    # Validate DB connectivity at startup
+    # Validate DB connectivity and ensure tables exist in development
     try:
         from sqlalchemy import text
 
-        from app.core.database import engine
+        from app.core.database import Base, engine
+        from app.ledger import models as _ledger_models  # noqa: F401
+
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("database_connected", host=settings.postgres_host, db=settings.postgres_db)
+            if settings.app_env in ("development", "testing"):
+                await conn.run_sync(Base.metadata.create_all)
+        logger.info("database_connected", url=settings.database_url.split("@")[-1])
     except Exception as exc:
-        # In development, the DB may not be running — log but don't crash
         logger.warning("database_unavailable", error=str(exc))
 
     # Load ML models into memory
