@@ -309,18 +309,36 @@ docker compose down
 
 ---
 
-## 📡 API Reference
+## 📡 API Reference (v1.0 Production)
+
+All endpoints are versioned under `/api/v1` (except deep `/health` for load balancers).
 
 | Method | Endpoint | Description | Status |
 |---|---|---|---|
-| `GET` | `/health` | System health check and environment status | 🟢 Active |
-| `POST` | `/accounts` | Create a new financial account and initialize balance projection | 🟢 Active |
-| `GET` | `/accounts/{account_id}` | Retrieve account details and verified balance projection | 🟢 Active |
-| `POST` | `/transfers` | Execute an atomic, balanced double-entry transfer (with `Idempotency-Key`) | 🟢 Active |
-| `GET` | `/analytics/summary` | Platform-wide financial summary metrics via SQL aggregations | 🟢 Active |
-| `POST` | `/fraud/predict` | Real-time ML inference scoring for a transaction | 🟢 Active |
-| `GET` | `/fraud/model-info` | Active model metadata, version, and performance metrics | 🟢 Active |
-| `POST` | `/ai/ask` | Natural language grounded queries handled by the AI Assistant | 🟢 Active |
+| `GET` | `/health` | Deep health check (DB ping + ML model status + version) | 🟢 Active |
+| `POST` | `/api/v1/accounts` | Create a new financial account and initialize balance projection | 🟢 Active |
+| `GET` | `/api/v1/accounts/{id}` | Retrieve account details and verified balance projection | 🟢 Active |
+| `GET` | `/api/v1/accounts/{id}/transactions` | Paginated journal entries (debits/credits) for an account | 🟢 Active |
+| `POST` | `/api/v1/transfers` | Execute atomic double-entry transfer (with `Idempotency-Key`) | 🟢 Active |
+| `GET` | `/api/v1/analytics/summary` | Platform-wide financial summary metrics via SQL aggregations | 🟢 Active |
+| `POST` | `/api/v1/fraud/predict` | Real-time ML inference scoring for a transaction | 🟢 Active |
+| `GET` | `/api/v1/fraud/model-info` | Active model metadata, version, and performance metrics | 🟢 Active |
+| `POST` | `/api/v1/ai/ask` | Natural language grounded queries handled by the AI Assistant | 🟢 Active |
+
+---
+
+## 🚀 Quick Start & Demo Data
+
+```bash
+# 1. Start the API server
+uvicorn app.main:app --reload --port 8000
+
+# 2. In a second terminal, seed realistic demo data (5 accounts, transfers, fraud cases)
+python scripts/seed_demo_data.py
+
+# 3. Open the interactive operations dashboard
+streamlit run app/dashboard.py
+```
 
 ---
 

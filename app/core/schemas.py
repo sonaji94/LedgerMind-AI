@@ -31,6 +31,28 @@ class AccountResponse(BaseModel):
     created_at: datetime
 
 
+# ── Journal Entry / Transaction History Schemas ───────────────────
+class JournalEntryItem(BaseModel):
+    """A single debit or credit leg of a journal transaction."""
+
+    id: UUID
+    transaction_id: UUID
+    entry_type: str          # "DEBIT" or "CREDIT"
+    amount_minor_units: int
+    amount_major: float
+    posted_at: datetime
+
+
+class TransactionHistoryResponse(BaseModel):
+    """Paginated list of journal entries for a given account."""
+
+    account_id: UUID
+    page: int
+    page_size: int
+    total: int
+    items: list[JournalEntryItem]
+
+
 # ── Transfer Schemas ──────────────────────────────────────────────
 class TransferRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
