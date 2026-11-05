@@ -25,4 +25,4 @@ async def test_health_environment_field(client: AsyncClient) -> None:
     assert response.status_code == 200
 
     data = response.json()
-    assert data["environment"] == "development"
+    assert data["environment"] in ("development", "testing")

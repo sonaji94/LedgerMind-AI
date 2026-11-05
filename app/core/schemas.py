@@ -88,6 +88,7 @@ class TransactionFeatures(BaseModel):
 class FraudPredictionRequest(BaseModel):
     transaction_id: str | None = None
     features: dict[str, float]
+    explain: bool = Field(default=False, description="Whether to compute SHAP feature contributions")
 
 
 class FraudPredictionResponse(BaseModel):
@@ -97,6 +98,7 @@ class FraudPredictionResponse(BaseModel):
     threshold_applied: float
     model_type: str
     latency_ms: float
+    top_shap_contributions: dict[str, float] | None = None
 
 
 class ModelInfoResponse(BaseModel):

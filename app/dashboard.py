@@ -66,12 +66,22 @@ with tab_triage:
             "V10": v10,
         }
 
-        risk_score, is_suspicious, latency_ms = FraudInferenceService.predict(features)
+        risk_score, is_suspicious, latency_ms, top_shap = FraudInferenceService.predict(
+            features,
+            explain=True,
+        )
         info = FraudInferenceService.get_info()
 
         metric_col1, metric_col2 = st.columns(2)
         metric_col1.metric("Predicted Fraud Risk", f"{risk_score * 100:.2f}%")
         metric_col2.metric("Inference Latency", f"{latency_ms:.2f} ms")
+
+        if top_shap:
+            st.markdown("#### 🔍 SHAP Explainability (Feature Attributions)")
+            st.caption("Shows features most responsible for driving this transaction's risk score.")
+            for feat_name, impact in top_shap.items():
+                direction = "🔺 Increased Risk" if impact > 0 else "🟢 Reduced Risk"
+                st.write(f"- **`{feat_name}`**: {impact:+.4f} ({direction})")
 
         st.progress(float(risk_score))
 

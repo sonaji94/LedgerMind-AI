@@ -17,13 +17,16 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.accounts.router import router as accounts_router
 from app.ai_assistant.router import router as ai_router
 from app.analytics.router import router as analytics_router
+from app.auth.router import router as auth_router
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import request_id_middleware
@@ -104,6 +107,7 @@ def create_app() -> FastAPI:
 
     # ── API v1 Routers ────────────────────────────────────────────
     API_PREFIX = "/api/v1"
+    app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(accounts_router, prefix=API_PREFIX)
     app.include_router(transfers_router, prefix=API_PREFIX)
     app.include_router(fraud_router, prefix=API_PREFIX)
@@ -112,7 +116,9 @@ def create_app() -> FastAPI:
 
     # ── Deep Health Check ─────────────────────────────────────────
     @app.get("/health", tags=["System"], summary="Deep health check")
-    async def health_check() -> dict[str, object]:
+    async def health_check(
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, object]:
         """
         Returns the operational status of the API, database connection,
         and ML fraud model. Safe for load-balancer probes.
@@ -122,9 +128,7 @@ def create_app() -> FastAPI:
         try:
             from sqlalchemy import text
 
-            from app.core.database import engine
-            async with engine.begin() as conn:
-                await conn.execute(text("SELECT 1"))
+            await db.execute(text("SELECT 1"))
             db_ok = True
         except Exception as exc:
             db_error = str(exc)

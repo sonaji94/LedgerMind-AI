@@ -18,8 +18,11 @@ router = APIRouter(prefix="/fraud", tags=["Fraud Detection"])
 
 @router.post("/predict", response_model=FraudPredictionResponse)
 async def predict_fraud(payload: FraudPredictionRequest) -> FraudPredictionResponse:
-    """Score a transaction's features in real-time and return fraud risk probability."""
-    risk_score, is_suspicious, latency_ms = FraudInferenceService.predict(payload.features)
+    """Score a transaction's features in real-time and return fraud risk probability with SHAP attribution."""
+    risk_score, is_suspicious, latency_ms, shap_contribs = FraudInferenceService.predict(
+        payload.features,
+        explain=payload.explain,
+    )
     info = FraudInferenceService.get_info()
 
     return FraudPredictionResponse(
@@ -29,6 +32,7 @@ async def predict_fraud(payload: FraudPredictionRequest) -> FraudPredictionRespo
         threshold_applied=info["optimal_threshold"],
         model_type=info["model_type"],
         latency_ms=round(latency_ms, 2),
+        top_shap_contributions=shap_contribs,
     )
 
 

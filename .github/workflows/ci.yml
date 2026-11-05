@@ -12,6 +12,9 @@ jobs:
     env:
       PYTHONPATH: .
       MYPYPATH: .
+      APP_ENV: testing
+      DATABASE_URL: sqlite+aiosqlite:///./test_ci.db
+      DATABASE_URL_SYNC: sqlite:///./test_ci.db
     strategy:
       matrix:
         python-version: ["3.12"]

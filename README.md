@@ -95,8 +95,8 @@ LedgerMind AI solves these challenges by combining:
 | 🛡️ **ML Fraud Detection** | 🟢 *Active* | Class-weighted supervised classification, Isolation Forest anomaly scoring, and cost-calibrated decision threshold optimization. |
 | 🤖 **AI Assistant & RAG** | 🟢 *Active* | Financial intelligence assistant grounded strictly in verified audit logs and database queries with zero hallucinations. |
 | 📈 **Interactive Dashboard** | 🟢 *Active* | Streamlit web interface featuring real-time risk triage, transaction distributions, and ledger audit tools. |
-| ⚡ **FastAPI REST API** | 🟢 *Active* | Asynchronous high-throughput endpoints, strict Pydantic v2 schemas, idempotency replay headers, and interactive OpenAPI documentation. |
-| 🧪 **Test & DevOps Suite** | 🟢 *Active* | 45-test automated test suite (Pytest), Docker multi-stage builds, Docker Compose, Alembic migrations, GitHub Actions CI, and 100% clean Ruff/Mypy validation. |
+| ⚡ **FastAPI REST API** | 🟢 *Active* | Asynchronous high-throughput endpoints, strict Pydantic v2 schemas, idempotency replay headers, JWT authentication, and interactive OpenAPI documentation. |
+| 🧪 **Test & DevOps Suite** | 🟢 *Active* | 53-test automated test suite (Pytest), Docker multi-stage builds, Docker Compose, Alembic migrations, GitHub Actions CI, and 100% clean Ruff/Mypy validation. |
 
 ---
 
@@ -316,12 +316,13 @@ All endpoints are versioned under `/api/v1` (except deep `/health` for load bala
 | Method | Endpoint | Description | Status |
 |---|---|---|---|
 | `GET` | `/health` | Deep health check (DB ping + ML model status + version) | 🟢 Active |
+| `POST` | `/api/v1/auth/token` | Issue signed JWT access token using client credentials | 🟢 Active |
 | `POST` | `/api/v1/accounts` | Create a new financial account and initialize balance projection | 🟢 Active |
 | `GET` | `/api/v1/accounts/{id}` | Retrieve account details and verified balance projection | 🟢 Active |
 | `GET` | `/api/v1/accounts/{id}/transactions` | Paginated journal entries (debits/credits) for an account | 🟢 Active |
 | `POST` | `/api/v1/transfers` | Execute atomic double-entry transfer (with `Idempotency-Key`) | 🟢 Active |
 | `GET` | `/api/v1/analytics/summary` | Platform-wide financial summary metrics via SQL aggregations | 🟢 Active |
-| `POST` | `/api/v1/fraud/predict` | Real-time ML inference scoring for a transaction | 🟢 Active |
+| `POST` | `/api/v1/fraud/predict` | Real-time ML inference scoring & SHAP feature attributions | 🟢 Active |
 | `GET` | `/api/v1/fraud/model-info` | Active model metadata, version, and performance metrics | 🟢 Active |
 | `POST` | `/api/v1/ai/ask` | Natural language grounded queries handled by the AI Assistant | 🟢 Active |
 
@@ -337,7 +338,7 @@ uvicorn app.main:app --reload --port 8000
 python scripts/seed_demo_data.py
 
 # 3. Open the interactive operations dashboard
-streamlit run app/dashboard.py
+python -m streamlit run app/dashboard.py
 ```
 
 ---
@@ -348,11 +349,11 @@ LedgerMind AI features an interactive Streamlit operations dashboard for real-ti
 
 ```bash
 # Launch the dashboard
-streamlit run app/dashboard.py
+python -m streamlit run app/dashboard.py
 ```
 
 ### Dashboard Capabilities:
-- **Real-Time Fraud Triage**: Live transaction scoring, risk distributions, and flagged alerts.
+- **Real-Time Fraud Triage**: Live transaction scoring, SHAP explainability attributions, risk distributions, and flagged alerts.
 - **Settlement & Liquidity Analytics**: Visual breakdown of total transaction volume and cash movement.
 - **Event-Sourced Ledger Explorer**: Inspect the immutable journal transaction log and balance projections.
 - **AI Financial Assistant**: Ask grounded natural language questions directly against the authoritative ledger.
