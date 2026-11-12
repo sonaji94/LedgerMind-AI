@@ -1,19 +1,18 @@
 # ============================================================
-# LedgerMind AI — Docker Compose
+# LedgerMind AI — Enterprise Docker Compose Orchestration
 # ============================================================
-# Services: PostgreSQL database + FastAPI application
-# Usage:
-#   docker compose up -d          # Start all services
-#   docker compose up -d db       # Start only PostgreSQL
-#   docker compose logs -f app    # Follow app logs
-#   docker compose down -v        # Stop and remove volumes
+# Services:
+#   1. db: PostgreSQL 17 database with row-locking support
+#   2. redis: Redis 7 in-memory sliding-window velocity cache
+#   3. backend: Asynchronous FastAPI REST engine (port 8000)
+#   4. frontend: Streamlit operations cockpit (port 8501)
 # ============================================================
 
 services:
-  # ── PostgreSQL Database ──────────────────────────────────
+  # ── 1. PostgreSQL 17 Database ─────────────────────────────
   db:
     image: postgres:17-alpine
-    container_name: ledgermind-db
+    container_name: ledgermind-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ledgermind}
@@ -29,27 +28,68 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── FastAPI Application ──────────────────────────────────
-  app:
+  # ── 2. Redis 7 Velocity Engine ────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ledgermind-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── 3. FastAPI High-Performance Backend ───────────────────
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ledgermind-app
+    container_name: ledgermind-backend
     restart: unless-stopped
     env_file:
       - .env
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: production
     ports:
-      - "${PORT:-8000}:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      # Mount ML models for hot-reload during development
       - ./ml/models:/app/ml/models:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/readyz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── 4. Presentation-Tier Streamlit Frontend ───────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: ledgermind-frontend
+    restart: unless-stopped
+    environment:
+      BACKEND_API_URL: http://backend:8000/api/v1
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:
+    driver: local
+  redisdata:
     driver: local
