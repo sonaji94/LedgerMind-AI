@@ -143,10 +143,6 @@ def upgrade() -> None:
     )
 
 
-def down_override() -> None:
-    pass
-
-
 def downgrade() -> None:
     op.drop_table("idempotency_records")
     op.drop_table("balance_projections")

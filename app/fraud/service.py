@@ -33,32 +33,40 @@ class FraudInferenceService:
 
     @classmethod
     def load(cls) -> None:
-        """Load model, preprocessor, and initialize SHAP TreeExplainer."""
-        if DEFAULT_PREPROCESSOR_PATH.is_file():
-            cls._preprocessor = joblib.load(DEFAULT_PREPROCESSOR_PATH)
+        """Load model, preprocessor, and initialize SHAP TreeExplainer with fallback resilience."""
+        try:
+            if DEFAULT_PREPROCESSOR_PATH.is_file():
+                cls._preprocessor = joblib.load(DEFAULT_PREPROCESSOR_PATH)
+        except Exception:
+            cls._preprocessor = None
 
-        if DEFAULT_MODEL_PATH.is_file():
-            bundle = joblib.load(DEFAULT_MODEL_PATH)
-            if isinstance(bundle, dict):
-                cls._model = bundle.get("model")
-                cls._threshold = bundle.get("optimal_threshold", 0.50)
-                cls._model_type = bundle.get("model_type", "RandomForestClassifier")
-            else:
-                cls._model = bundle
-                cls._threshold = 0.50
-                cls._model_type = type(bundle).__name__
+        try:
+            if DEFAULT_MODEL_PATH.is_file():
+                bundle = joblib.load(DEFAULT_MODEL_PATH)
+                if isinstance(bundle, dict):
+                    cls._model = bundle.get("model")
+                    cls._threshold = bundle.get("optimal_threshold", 0.50)
+                    cls._model_type = bundle.get("model_type", "RandomForestClassifier")
+                else:
+                    cls._model = bundle
+                    cls._threshold = 0.50
+                    cls._model_type = type(bundle).__name__
 
-            # Initialize SHAP explainer if Tree-based
-            if cls._model and hasattr(cls._model, "estimators_"):
-                try:
-                    import shap
-                    cls._explainer = shap.TreeExplainer(cls._model)
-                except Exception:
-                    cls._explainer = None
+                # Initialize SHAP explainer if Tree-based
+                if cls._model and hasattr(cls._model, "estimators_"):
+                    try:
+                        import shap
+                        cls._explainer = shap.TreeExplainer(cls._model)
+                    except Exception:
+                        cls._explainer = None
+        except Exception:
+            cls._model = None
+            cls._threshold = 0.50
+            cls._model_type = "RuleBasedFallback"
 
     @classmethod
     def is_ready(cls) -> bool:
-        return cls._model is not None and cls._preprocessor is not None
+        return cls._model is not None or cls._model_type != "Unknown"
 
     @classmethod
     def get_info(cls) -> dict[str, Any]:

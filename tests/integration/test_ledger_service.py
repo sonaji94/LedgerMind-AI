@@ -145,3 +145,10 @@ async def test_rebuild_projection_from_journal_entries(db_session: AsyncSession)
 
     bal_acc2 = await service.get_balance(acc2.id)
     assert bal_acc2.minor_units == 3500
+
+    # acc1 started with 10000 and transferred out 2000 + 1500 = 3500 credits -> 6500 remaining
+    rebuilt_acc1 = await service.rebuild_projection_from_journal(acc1.id)
+    assert rebuilt_acc1 == 6500
+
+    bal_acc1 = await service.get_balance(acc1.id)
+    assert bal_acc1.minor_units == 6500

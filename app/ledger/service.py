@@ -80,6 +80,24 @@ class LedgerService:
             version=1,
         )
         self.session.add(event)
+
+        if initial_deposit_minor_units > 0:
+            init_txn = JournalTransactionModel(
+                id=uuid4(),
+                idempotency_key=f"initial-deposit-{account_id}",
+                description="Initial Account Deposit",
+                posted_at=datetime.now(UTC),
+            )
+            self.session.add(init_txn)
+            entry = JournalEntryModel(
+                id=uuid4(),
+                transaction_id=init_txn.id,
+                account_id=account_id,
+                entry_type=EntryType.DEBIT.value,
+                amount_minor_units=initial_deposit_minor_units,
+            )
+            self.session.add(entry)
+
         await self.session.flush()
 
         return account
