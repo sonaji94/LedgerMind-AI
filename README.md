@@ -51,36 +51,35 @@ LedgerMind AI solves these challenges by combining:
 ## 🏗️ System Architecture
 
 ```
-                                 ┌─────────────────────────────────┐
-                                 │       Clients & Analysts        │
-                                 │  (Streamlit UI / REST Consumers)│
-                                 └────────────────┬────────────────┘
-                                                  │
-                                                  ▼
-                        ┌──────────────────────────────────────────────────┐
-                        │              FastAPI Gateway & Auth              │
-                        │    (Pydantic v2, CORS, Idempotency Middleware)    │
-                        └───┬─────────────┬─────────────┬──────────────┬───┘
-                            │             │             │              │
-         ┌──────────────────┘             │             │              └──────────────────┐
-         ▼                                ▼             ▼                                 ▼
-┌─────────────────┐             ┌─────────────────┐ ┌─────────────────┐         ┌─────────────────┐
-│ Event-Sourced   │             │   SQL & Data    │ │  ML Fraud       │         │  AI Financial   │
-│ Ledger Engine   │             │   Analytics     │ │  Detection      │         │  Assistant      │
-├─────────────────┤             ├─────────────────┤ ├─────────────────┤         ├─────────────────┤
-│ • Double Entry  │             │ • Velocity Aggs │ │ • Imbalanced Clf│         │ • Tool Calling  │
-│ • Atomic Locks  │             │ • Cash Flow     │ │ • Anomaly Det.  │         │ • RAG Pipeline  │
-│ • Idempotency   │             │ • Trend Metrics │ │ • Risk Scoring  │         │ • Grounded Q&A  │
-└────────┬────────┘             └────────┬────────┘ └────────┬────────┘         └────────┬────────┘
-         │                               │                   │                           │
-         ▼                               ▼                   ▼                           ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                           PostgreSQL Database (Async SQLAlchemy + asyncpg)                       │
-│  ┌───────────────────────┐   ┌─────────────────────────┐   ┌─────────────────────────────────┐  │
-│  │ Domain Event Store    │   │ Balance Projections     │   │ Idempotency & Audit Records     │  │
-│  │ (Append-Only Log)     │   │ (Materialized Accounts) │   │ (Duplicate Execution Guard)     │  │
-│  └───────────────────────┘   └─────────────────────────┘   └─────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+                    ┌────────────────────────────────────────────────────────┐
+                    │               Frontend Presentation Tier               │
+                    │      (Streamlit Operations Cockpit & Analyst UX)       │
+                    └───────────────────────────┬────────────────────────────┘
+                                                │ REST + JWT Bearer Auth
+                                                ▼
+     ┌──────────────────────────────────────────────────────────────────────────────────┐
+     │                     FastAPI High-Performance Async Backend                        │
+     │      (Ingestion Gateway, RBAC Security, Lifespan Preloading, Idempotency)        │
+     └───┬──────────────────────┬───────────────────────┬───────────────────────────┬───┘
+         │                      │                       │                           │
+         ▼                      ▼                       ▼                           ▼
+┌──────────────────┐   ┌──────────────────┐   ┌───────────────────┐       ┌─────────────────┐
+│ Event-Sourced    │   │ Sub-Millisecond  │   │  Real-Time ML &   │       │  Compliance &   │
+│ Double-Entry DB  │   │ Velocity Engine  │   │  TreeSHAP Pipeline│       │  SAR Generator  │
+├──────────────────┤   ├──────────────────┤   ├───────────────────┤       ├─────────────────┤
+│ • SELECT FOR UPD │   │ • Sliding Window │   │ • Cost Optimizer  │       │ • RBAC Enforce  │
+│ • Zero-Drift Leg │   │ • 1m / 1h Counts │   │ • Top 3 SHAP Att. │       │ • PII Masking   │
+│ • BIGINT Minor   │   │ • Redis 7 Fallbk │   │ • Haversine Speed │       │ • Immutable Log │
+└────────┬─────────┘   └────────┬─────────┘   └─────────┬─────────┘       └────────┬────────┘
+         │                      │                       │                          │
+         ▼                      ▼                       ▼                          ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Data & Storage Tier (PostgreSQL 17 + Redis 7)                   │
+│  ┌────────────────────────┐  ┌───────────────────────────┐  ┌───────────────────────┐  │
+│  │ Domain Event Store     │  │ Balance Projections       │  │ Redis Sliding-Window  │  │
+│  │ (Append-Only Journal)  │  │ (Row-Level Locking)       │  │ (Velocity Ring Buffer)│  │
+│  └────────────────────────┘  └───────────────────────────┘  └───────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -324,34 +323,44 @@ docker compose down
 
 ## 📡 API Reference (v1.0 Production)
 
-All endpoints are versioned under `/api/v1` (except deep `/health` for load balancers).
+All core business endpoints are versioned under `/api/v1` with Kubernetes liveness and deep readiness probes at root.
 
-| Method | Endpoint | Description | Status |
-|---|---|---|---|
-| `GET` | `/health` | Deep health check (DB ping + ML model status + version) | 🟢 Active |
-| `POST` | `/api/v1/auth/token` | Issue signed JWT access token using client credentials | 🟢 Active |
-| `POST` | `/api/v1/accounts` | Create a new financial account and initialize balance projection | 🟢 Active |
-| `GET` | `/api/v1/accounts/{id}` | Retrieve account details and verified balance projection | 🟢 Active |
-| `GET` | `/api/v1/accounts/{id}/transactions` | Paginated journal entries (debits/credits) for an account | 🟢 Active |
-| `POST` | `/api/v1/transfers` | Execute atomic double-entry transfer (with `Idempotency-Key`) | 🟢 Active |
-| `GET` | `/api/v1/analytics/summary` | Platform-wide financial summary metrics via SQL aggregations | 🟢 Active |
-| `POST` | `/api/v1/fraud/predict` | Real-time ML inference scoring & SHAP feature attributions | 🟢 Active |
-| `GET` | `/api/v1/fraud/model-info` | Active model metadata, version, and performance metrics | 🟢 Active |
-| `POST` | `/api/v1/ai/ask` | Natural language grounded queries handled by the AI Assistant | 🟢 Active |
+| Method | Endpoint | Description | Auth / RBAC | Status |
+|---|---|---|---|---|
+| `GET` | `/healthz` | Kubernetes liveness probe (HTTP 200 process check) | Public | 🟢 Active |
+| `GET` | `/readyz` | Kubernetes deep readiness (DB ping + Redis + Model state) | Public | 🟢 Active |
+| `GET` | `/health` | Deep platform health check and component telemetry | Public | 🟢 Active |
+| `POST` | `/api/v1/auth/token` | Issue signed JWT access token with user role | Public | 🟢 Active |
+| `POST` | `/api/v1/accounts` | Create financial account and initialize projection | Bearer JWT | 🟢 Active |
+| `GET` | `/api/v1/accounts/{id}` | Retrieve verified balance projection (BIGINT minor units) | Bearer JWT | 🟢 Active |
+| `GET` | `/api/v1/accounts/{id}/transactions` | Paginated journal entries (debits/credits) | Bearer JWT | 🟢 Active |
+| `POST` | `/api/v1/transfers` | Atomic double-entry transfer (`SELECT FOR UPDATE`) | Bearer JWT | 🟢 Active |
+| `POST` | `/api/v1/transactions/ingest` | Real-time webhook ingestion with `Idempotency-Key` | Public / Gateway | 🟢 Active |
+| `POST` | `/api/v1/fraud/predict` | ML scoring & TreeSHAP localized attributions | Bearer JWT | 🟢 Active |
+| `GET` | `/api/v1/fraud/model-info` | Active ensemble metadata and optimal threshold | Bearer JWT | 🟢 Active |
+| `GET` | `/api/v1/analytics/summary` | Real-time platform liquidity and transfer volume | Bearer JWT | 🟢 Active |
+| `POST` | `/api/v1/compliance/freeze` | Freeze compromised account (compensating event) | `Compliance_Officer` / `Admin` | 🟢 Active |
+| `POST` | `/api/v1/compliance/step-up-2fa` | Trigger out-of-band FIDO2 / 2FA challenge | `Analyst`+ | 🟢 Active |
+| `POST` | `/api/v1/compliance/sar-generate` | Generate FinCEN SAR narrative with PII redaction | `Compliance_Officer` / `Admin` | 🟢 Active |
+| `GET` | `/api/v1/compliance/audit-logs` | Retrieve immutable operator compliance audit trail | `Compliance_Officer` / `Admin` | 🟢 Active |
+| `POST` | `/api/v1/ai/ask` | Natural language grounded queries handled by AI | Bearer JWT | 🟢 Active |
 
 ---
 
-## 🚀 Quick Start & Demo Data
+## 🚀 Quick Start & Production Workflows
 
 ```bash
-# 1. Start the API server
-uvicorn app.main:app --reload --port 8000
+# 1. Train production calibrated ensemble model (saves ml/models/fraud_model.joblib)
+python ml/train.py
 
-# 2. In a second terminal, seed realistic demo data (5 accounts, transfers, fraud cases)
-python scripts/seed_demo_data.py
+# 2. Start the high-performance FastAPI backend server
+uvicorn backend.main:app --reload --port 8000
 
-# 3. Open the interactive operations dashboard
-python -m streamlit run app/dashboard.py
+# 3. Stream real-world continuous traffic (Legitimate, Account Takeover, Smurfing)
+python scripts/live_traffic_generator.py --rate 1.0
+
+# 4. Open the interactive operations dashboard (Presentation Tier)
+streamlit run frontend/dashboard.py
 ```
 
 ---
