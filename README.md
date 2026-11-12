@@ -290,6 +290,17 @@ PREDICTION_THRESHOLD=0.5
    - **Alternative API Reference (ReDoc):** [http://localhost:8000/redoc](http://localhost:8000/redoc)
    - **Health Check Endpoint:** [http://localhost:8000/health](http://localhost:8000/health)
 
+5. **Launch the Production Operations Cockpit (Streamlit Dashboard):**
+   ```bash
+   streamlit run app/dashboard.py
+   ```
+   Explore the 5 interactive operations modules at [http://localhost:8501](http://localhost:8501):
+   - 🛡️ **Real-Time Fraud Triage**: Banking scenario presets (Retail, ATM Cashout, Card-Testing, Wire Outlier) + live SHAP waterfall attributions.
+   - 📊 **Settlement Velocity Analytics**: 24-hour volume distributions, ticket size histograms, and capital tiers.
+   - 📖 **Live Double-Entry Ledger**: Real-time atomic transfer simulator + verifiable zero-drift $\Sigma\text{Debits} == \Sigma\text{Credits}$ audit.
+   - 🤖 **Grounded AI Financial Analyst**: Natural language assistant with verifiable SQL audit evidence drawers.
+   - 🧪 **Model Cockpit & Optimizer**: Interactive threshold tuning balancing user friction ($\$10$) against fraud losses ($\$250$).
+
 ---
 
 ### Docker Compose Deployment
