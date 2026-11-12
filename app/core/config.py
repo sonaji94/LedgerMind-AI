@@ -77,9 +77,10 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_enabled: bool = True
 
-    # ── Security ──────────────────────────────────────────────────
+    # ── Security & Webhooks ───────────────────────────────────────
     secret_key: str = "change-this-to-a-random-secret-key"
     access_token_expire_minutes: int = 30
+    razorpay_webhook_secret: str = "rzp_whsec_test_secret_key_12345"
 
     @field_validator("secret_key")
     @classmethod

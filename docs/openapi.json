@@ -327,6 +327,179 @@
         }
       }
     },
+    "/api/v1/webhooks/razorpay": {
+      "post": {
+        "tags": [
+          "Razorpay Webhooks & Reconciliation"
+        ],
+        "summary": "Secure Razorpay Webhook Ingestion",
+        "description": "Enterprise Razorpay Webhook Receiver:\n1. Constant-time HMAC-SHA256 signature verification on raw request bytes\n2. Strict idempotency deduplication (prevents dual ledger posting)\n3. Fast acknowledgment (< 200ms) with background task execution",
+        "operationId": "receive_razorpay_webhook_api_v1_webhooks_razorpay_post",
+        "parameters": [
+          {
+            "name": "X-Razorpay-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Razorpay-Signature"
+            }
+          },
+          {
+            "name": "X-Razorpay-Event-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Razorpay-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Receive Razorpay Webhook Api V1 Webhooks Razorpay Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/razorpay/events": {
+      "get": {
+        "tags": [
+          "Razorpay Webhooks & Reconciliation"
+        ],
+        "summary": "List Recent Razorpay Webhook Events",
+        "description": "Retrieve the recent Razorpay webhook events and reconciliation states.",
+        "operationId": "list_webhook_events_api_v1_webhooks_razorpay_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Webhook Events Api V1 Webhooks Razorpay Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/razorpay/feedback": {
+      "post": {
+        "tags": [
+          "Razorpay Webhooks & Reconciliation"
+        ],
+        "summary": "Submit Analyst Ground-Truth Feedback",
+        "description": "Human-in-the-Loop Feedback:\nAnalysts label transactions as confirmed fraud (1) or safe false positive (0).\nWrites to webhook_events and records an immutable compliance audit log.",
+        "operationId": "submit_analyst_feedback_api_v1_webhooks_razorpay_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelFeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Submit Analyst Feedback Api V1 Webhooks Razorpay Feedback Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/fraud/predict": {
       "post": {
         "tags": [
@@ -1281,6 +1454,36 @@
         ],
         "title": "JournalEntryItem",
         "description": "A single debit or credit leg of a journal transaction."
+      },
+      "LabelFeedbackRequest": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id",
+            "description": "Razorpay payment_id (pay_...) or payout_id (pout_...)"
+          },
+          "ground_truth_label": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ground Truth Label",
+            "description": "1 = Confirmed Fraud/Chargeback, 0 = Confirmed Legitimate"
+          },
+          "justification_reason": {
+            "type": "string",
+            "minLength": 4,
+            "title": "Justification Reason",
+            "description": "Analyst reason for verified classification"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "ground_truth_label",
+          "justification_reason"
+        ],
+        "title": "LabelFeedbackRequest",
+        "description": "Analyst ground-truth label feedback payload."
       },
       "LoginRequest": {
         "properties": {

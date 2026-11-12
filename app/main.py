@@ -36,6 +36,7 @@ from app.fraud.router import router as fraud_router
 from app.fraud.service import FraudInferenceService
 from app.ingestion.router import router as ingestion_router
 from app.transactions.router import router as transfers_router
+from app.webhooks.router import router as webhooks_router
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router, prefix=API_PREFIX)
     app.include_router(transfers_router, prefix=API_PREFIX)
     app.include_router(ingestion_router, prefix=API_PREFIX)
+    app.include_router(webhooks_router, prefix=API_PREFIX)
     app.include_router(fraud_router, prefix=API_PREFIX)
     app.include_router(analytics_router, prefix=API_PREFIX)
     app.include_router(compliance_router, prefix=API_PREFIX)
