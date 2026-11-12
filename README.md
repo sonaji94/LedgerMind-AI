@@ -294,12 +294,14 @@ PREDICTION_THRESHOLD=0.5
    ```bash
    streamlit run app/dashboard.py
    ```
-   Explore the 5 interactive operations modules at [http://localhost:8501](http://localhost:8501):
-   - 🛡️ **Real-Time Fraud Triage**: Banking scenario presets (Retail, ATM Cashout, Card-Testing, Wire Outlier) + live SHAP waterfall attributions.
-   - 📊 **Settlement Velocity Analytics**: 24-hour volume distributions, ticket size histograms, and capital tiers.
-   - 📖 **Live Double-Entry Ledger**: Real-time atomic transfer simulator + verifiable zero-drift $\Sigma\text{Debits} == \Sigma\text{Credits}$ audit.
-   - 🤖 **Grounded AI Financial Analyst**: Natural language assistant with verifiable SQL audit evidence drawers.
-   - 🧪 **Model Cockpit & Optimizer**: Interactive threshold tuning balancing user friction ($\$10$) against fraud losses ($\$250$).
+   Explore the 7 institutional operations modules at [http://localhost:8501](http://localhost:8501):
+   - 🚨 **Incident Command & Live Fraud Triage Queue**: Real-world FinOps/SOC alert stream with anomaly badges and 1-click Account Freeze, FIDO2 Step-up 2FA, and Investigation workflows.
+   - 🔬 **Deep Transaction Investigator & SHAP XAI**: Interactive PCA vector analysis with TreeExplainer attributions isolating exact risk forces.
+   - 🕸️ **AML & Mule Network Flow Visualizer**: Graph node architecture tracking structuring (smurfing below €10k) and pass-through layering across mule clusters.
+   - 📖 **Ledger & Cryptographic Proof-of-Solvency**: Live double-entry bookkeeping with SHA-256 block hash chaining and strict zero-drift audit ($\Sigma\text{Debits} == \Sigma\text{Credits}$).
+   - ⚡ **Autonomous Cyber Attack Simulator**: High-velocity stress testing simulating 250-txn botnet card bursts, smurfing surges, and business peaks at sub-5ms SLA.
+   - 🎯 **Cost Frontier & Threshold Optimizer**: Interactive financial loss curve balancing user friction costs against fraud chargeback losses to find optimal cutoff $\tau^*$.
+   - 🤖 **AI Copilot & Regulatory SAR Generator**: Natural language compliance analyst with one-click formal FinCEN Suspicious Activity Report (SAR) generation and SQL audit evidence drawers.
 
 ---
 
