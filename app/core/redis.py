@@ -29,6 +29,31 @@ class InMemoryVelocityStore:
     def __init__(self) -> None:
         self._events: dict[str, list[tuple[float, int]]] = defaultdict(list)
         self._rate_limits: dict[str, list[float]] = defaultdict(list)
+        self._instrument_events: dict[str, list[float]] = defaultdict(list)
+        self._entity_cards: dict[str, list[tuple[float, str]]] = defaultdict(list)
+
+    def record_instrument_event(self, key: str, timestamp: float | None = None) -> None:
+        t = timestamp or time.time()
+        self._instrument_events[key].append(t)
+
+    def get_instrument_velocity(self, key: str, window_seconds: int = 60) -> int:
+        now = time.time()
+        cutoff = now - window_seconds
+        valid = [t for t in self._instrument_events.get(key, []) if t >= cutoff]
+        self._instrument_events[key] = valid
+        return len(valid)
+
+    def record_entity_card(self, entity_key: str, card_identifier: str, timestamp: float | None = None) -> None:
+        t = timestamp or time.time()
+        self._entity_cards[entity_key].append((t, card_identifier))
+
+    def get_distinct_cards_count(self, entity_key: str, window_seconds: int = 600) -> int:
+        now = time.time()
+        cutoff = now - window_seconds
+        valid = [item for item in self._entity_cards.get(entity_key, []) if item[0] >= cutoff]
+        self._entity_cards[entity_key] = valid
+        distinct_cards = {item[1] for item in valid}
+        return len(distinct_cards)
 
     def record_event(self, key: str, amount_minor: int, timestamp: float | None = None) -> None:
         t = timestamp or time.time()
@@ -193,3 +218,63 @@ class RedisVelocityEngine:
                 logger.warning("redis_ratelimit_error", error=str(e))
 
         return cls._in_memory.is_rate_limited(redis_key, limit, window_seconds)
+
+    @classmethod
+    async def record_instrument_activity(cls, instrument_key: str, timestamp: float | None = None) -> None:
+        """Track card hash / UPI VPA velocity event in sliding window."""
+        t = timestamp or time.time()
+        key = f"velocity:inst:{instrument_key}"
+        if cls._is_connected and cls._redis_client:
+            try:
+                await cls._redis_client.zadd(key, {f"{t}": t})
+                await cls._redis_client.expire(key, 7200)
+                return
+            except Exception as e:
+                logger.warning("redis_instrument_record_error", error=str(e))
+        cls._in_memory.record_instrument_event(key, t)
+
+    @classmethod
+    async def get_instrument_velocity(cls, instrument_key: str, window_seconds: int = 60) -> int:
+        """Count transactions on this payment instrument in the last window_seconds."""
+        now = time.time()
+        cutoff = now - window_seconds
+        key = f"velocity:inst:{instrument_key}"
+        if cls._is_connected and cls._redis_client:
+            try:
+                await cls._redis_client.zremrangebyscore(key, "-inf", cutoff)
+                count = await cls._redis_client.zcount(key, cutoff, "+inf")
+                return int(count)
+            except Exception as e:
+                logger.warning("redis_instrument_velocity_error", error=str(e))
+        return cls._in_memory.get_instrument_velocity(key, window_seconds)
+
+    @classmethod
+    async def record_entity_card_attempt(cls, entity_key: str, card_identifier: str, timestamp: float | None = None) -> None:
+        """Record a card attempt associated with an IP address or customer email."""
+        t = timestamp or time.time()
+        key = f"cards:{entity_key}"
+        if cls._is_connected and cls._redis_client:
+            try:
+                member = f"{card_identifier}:{t}"
+                await cls._redis_client.zadd(key, {member: t})
+                await cls._redis_client.expire(key, 3600)
+                return
+            except Exception as e:
+                logger.warning("redis_entity_card_record_error", error=str(e))
+        cls._in_memory.record_entity_card(key, card_identifier, t)
+
+    @classmethod
+    async def get_distinct_cards_count(cls, entity_key: str, window_seconds: int = 600) -> int:
+        """Return the count of distinct cards attempted by an entity (IP/email) in the last window_seconds."""
+        now = time.time()
+        cutoff = now - window_seconds
+        key = f"cards:{entity_key}"
+        if cls._is_connected and cls._redis_client:
+            try:
+                await cls._redis_client.zremrangebyscore(key, "-inf", cutoff)
+                members = await cls._redis_client.zrangebyscore(key, cutoff, "+inf")
+                distinct = {m.split(":")[0] for m in members if ":" in m}
+                return len(distinct)
+            except Exception as e:
+                logger.warning("redis_distinct_cards_error", error=str(e))
+        return cls._in_memory.get_distinct_cards_count(key, window_seconds)

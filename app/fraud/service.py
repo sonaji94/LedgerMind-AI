@@ -42,16 +42,57 @@ class ProductionEnsembleClassifier:
         X = np.asarray(X, dtype=float)
         if X.ndim == 1:
             X = X.reshape(1, -1)
-        if X.shape[1] == 30:
-            t_sec = X[:, 0]
-            amt = X[:, 1]
+
+        n_samples, n_feats = X.shape
+
+        if n_feats == 14 and len(self.weights) == 14:
+            scores = np.dot(X, self.weights) + self.bias
+        elif n_feats == 14 and len(self.weights) == 31:
+            amt = X[:, 0] / 100.0
+            t_sec = (X[:, 12] * 3600.0) + (X[:, 13] * 86400.0)
             amt_scaled = (amt - 22.0) / 77.0
             time_sin = np.sin(2 * np.pi * t_sec / 86400.0)
             time_cos = np.cos(2 * np.pi * t_sec / 86400.0)
-            v_vals = X[:, 2:]
-            X = np.column_stack([amt_scaled, time_sin, time_cos, v_vals])
+            v_syn = np.zeros((n_samples, 28))
+            v_syn[:, 3] = X[:, 1] * 0.8
+            v_syn[:, 13] = -X[:, 3] * 1.2
+            v_syn[:, 16] = -X[:, 9] * 1.5
+            v_syn[:, 9] = -X[:, 5] * 0.7
+            X_mapped = np.column_stack([amt_scaled, time_sin, time_cos, v_syn])
+            scores = np.dot(X_mapped, self.weights) + self.bias
+        elif n_feats in (30, 31):
+            if n_feats == 30:
+                t_sec = X[:, 0]
+                amt = X[:, 1]
+                amt_scaled = (amt - 22.0) / 77.0
+                time_sin = np.sin(2 * np.pi * t_sec / 86400.0)
+                time_cos = np.cos(2 * np.pi * t_sec / 86400.0)
+                v_vals = X[:, 2:]
+                X = np.column_stack([amt_scaled, time_sin, time_cos, v_vals])
 
-        scores = np.dot(X, self.weights) + self.bias
+            if len(self.weights) == 14:
+                amt_minor = X[:, 0] * 77.0 + 22.0
+                v14 = X[:, 16]
+                v17 = X[:, 19]
+                v4 = X[:, 6]
+                v10 = X[:, 12]
+                vel_60 = np.clip(np.maximum(0, v4 * 2.0), 0, 20)
+                cards_ip = np.clip(np.maximum(0, -v14 * 2.0), 0, 15)
+                payout_ratio = np.clip(np.maximum(0, -v17 * 0.3), 0, 1.0)
+                z_score = np.clip(-v10, -3.0, 8.0)
+                hour = (np.arctan2(X[:, 1], X[:, 2]) / (2 * np.pi) * 24.0) % 24
+                X_14 = np.column_stack([
+                    amt_minor * 100.0, vel_60, vel_60 * 3.0, cards_ip, cards_ip * 0.5,
+                    z_score, np.maximum(1.0, z_score), np.full(n_samples, 60.0),
+                    np.full(n_samples, 720.0), payout_ratio, np.zeros(n_samples),
+                    np.zeros(n_samples), hour, np.zeros(n_samples)
+                ])
+                scores = np.dot(X_14, self.weights) + self.bias
+            else:
+                scores = np.dot(X, self.weights) + self.bias
+        else:
+            scores = np.zeros(n_samples)
+
         probs_class_1 = 1.0 / (1.0 + np.exp(-np.clip(scores, -25.0, 25.0)))
         probs_class_0 = 1.0 - probs_class_1
         return np.column_stack([probs_class_0, probs_class_1])
