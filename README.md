@@ -336,6 +336,9 @@ All core business endpoints are versioned under `/api/v1` with Kubernetes livene
 | `GET` | `/api/v1/accounts/{id}/transactions` | Paginated journal entries (debits/credits) | Bearer JWT | 🟢 Active |
 | `POST` | `/api/v1/transfers` | Atomic double-entry transfer (`SELECT FOR UPDATE`) | Bearer JWT | 🟢 Active |
 | `POST` | `/api/v1/transactions/ingest` | Real-time webhook ingestion with `Idempotency-Key` | Public / Gateway | 🟢 Active |
+| `POST` | `/api/v1/webhooks/razorpay` | Razorpay HMAC-SHA256 webhook receiver & auto reconciliation | Public / Razorpay | 🟢 Active |
+| `GET` | `/api/v1/webhooks/razorpay/events` | List recent Razorpay webhooks & double-entry status | Bearer JWT | 🟢 Active |
+| `POST` | `/api/v1/webhooks/razorpay/feedback` | Submit analyst ground-truth labels for active retraining | `Analyst`+ | 🟢 Active |
 | `POST` | `/api/v1/fraud/predict` | ML scoring & TreeSHAP localized attributions | Bearer JWT | 🟢 Active |
 | `GET` | `/api/v1/fraud/model-info` | Active ensemble metadata and optimal threshold | Bearer JWT | 🟢 Active |
 | `GET` | `/api/v1/analytics/summary` | Real-time platform liquidity and transfer volume | Bearer JWT | 🟢 Active |
@@ -350,16 +353,20 @@ All core business endpoints are versioned under `/api/v1` with Kubernetes livene
 ## 🚀 Quick Start & Production Workflows
 
 ```bash
-# 1. Train production calibrated ensemble model (saves ml/models/fraud_model.joblib)
-python ml/train.py
-
-# 2. Start the high-performance FastAPI backend server
+# 1. Start the high-performance FastAPI backend server
 uvicorn backend.main:app --reload --port 8000
 
-# 3. Stream real-world continuous traffic (Legitimate, Account Takeover, Smurfing)
-python scripts/live_traffic_generator.py --rate 1.0
+# 2. Transmit cryptographically signed Razorpay test webhooks
+python scripts/send_razorpay_test_webhook.py --event payment.captured --amount 750
 
-# 4. Open the interactive operations dashboard (Presentation Tier)
+# 3. Simulate adversarial attacks (Card-Testing smurfing or ATO balance liquidation)
+python scripts/send_razorpay_test_webhook.py --scenario card-testing
+python scripts/send_razorpay_test_webhook.py --scenario account-drain
+
+# 4. Run active continuous model retraining on analyst-verified feedback & disputes
+python ml/retrain.py
+
+# 5. Open the interactive operations dashboard (Presentation Tier)
 streamlit run frontend/dashboard.py
 ```
 
