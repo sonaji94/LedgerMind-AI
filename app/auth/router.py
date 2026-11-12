@@ -39,4 +39,5 @@ async def login_for_access_token(payload: LoginRequest) -> TokenResponse:
         access_token=token,
         token_type="bearer",
         expires_in_seconds=30 * 60,
+        role=payload.role,
     )
