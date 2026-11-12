@@ -165,11 +165,12 @@ class LedgerService:
         if source_account_id == destination_account_id:
             raise AccountStatusError("Cannot transfer funds to the same account.")
 
-        # 1. Fetch both accounts & projections
+        # 1. Fetch both accounts & projections with row-level locking (SELECT FOR UPDATE)
         src_res = await self.session.execute(
             select(AccountModel, BalanceProjectionModel)
             .join(BalanceProjectionModel, AccountModel.id == BalanceProjectionModel.account_id)
             .where(AccountModel.id == source_account_id)
+            .with_for_update()
         )
         src_row = src_res.first()
         if not src_row:
@@ -180,6 +181,7 @@ class LedgerService:
             select(AccountModel, BalanceProjectionModel)
             .join(BalanceProjectionModel, AccountModel.id == BalanceProjectionModel.account_id)
             .where(AccountModel.id == destination_account_id)
+            .with_for_update()
         )
         dst_row = dst_res.first()
         if not dst_row:
@@ -290,3 +292,72 @@ class LedgerService:
             await self.session.flush()
 
         return recalculated_balance
+
+    async def freeze_account(
+        self,
+        account_id: UUID,
+        reason: str,
+        operator_id: str = "system",
+    ) -> None:
+        """
+        Freeze an account by emitting an append-only domain event and transitioning status.
+        Never deletes or updates financial records.
+        """
+        acc = await self.session.get(AccountModel, account_id)
+        if not acc:
+            raise AccountStatusError(f"Account {account_id} not found.")
+
+        acc.status = AccountStatus.FROZEN.value
+        acc.version += 1
+
+        event = DomainEventModel(
+            aggregate_id=account_id,
+            aggregate_type="Account",
+            event_type="AccountFrozen",
+            payload={
+                "account_id": str(account_id),
+                "reason": reason,
+                "operator_id": operator_id,
+                "status": "FROZEN",
+            },
+            version=acc.version,
+        )
+        self.session.add(event)
+        await self.session.flush()
+
+    async def execute_reversal(
+        self,
+        original_transaction_id: UUID,
+        reason: str,
+        idempotency_key: str | None = None,
+    ) -> JournalTransaction:
+        """
+        Execute an immutable compensating transaction that reverses an existing transfer.
+        Never updates or deletes historical records; creates an inverse dual-legged journal transaction.
+        """
+        query = select(JournalEntryModel).where(JournalEntryModel.transaction_id == original_transaction_id)
+        result = await self.session.execute(query)
+        entries = result.scalars().all()
+
+        if len(entries) < 2:
+            raise AccountStatusError(f"Original transaction {original_transaction_id} not found or incomplete.")
+
+        # Identify original credit and debit legs
+        orig_credit = next((e for e in entries if e.entry_type == EntryType.CREDIT.value), None)
+        orig_debit = next((e for e in entries if e.entry_type == EntryType.DEBIT.value), None)
+
+        if not orig_credit or not orig_debit:
+            raise AccountStatusError("Invalid original transaction structure for reversal.")
+
+        # Retrieve currency from account
+        src_acc = await self.session.get(AccountModel, orig_debit.account_id)
+        currency = src_acc.currency if src_acc else "EUR"
+
+        # Inverse transfer: original debit account now pays back original credit account
+        return await self.execute_transfer(
+            source_account_id=orig_debit.account_id,
+            destination_account_id=orig_credit.account_id,
+            amount=Money(minor_units=orig_credit.amount_minor_units, currency=currency),
+            idempotency_key=idempotency_key or f"reversal-{original_transaction_id}",
+            description=f"Compensating Reversal for TX {original_transaction_id}: {reason}",
+        )
