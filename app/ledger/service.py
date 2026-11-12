@@ -82,21 +82,47 @@ class LedgerService:
         self.session.add(event)
 
         if initial_deposit_minor_units > 0:
+            genesis_id = UUID("00000000-0000-0000-0000-000000000000")
+            genesis = await self.session.get(AccountModel, genesis_id)
+            if not genesis:
+                genesis = AccountModel(
+                    id=genesis_id,
+                    owner_id=genesis_id,
+                    currency=currency,
+                    status=AccountStatus.ACTIVE.value,
+                    version=1,
+                )
+                self.session.add(genesis)
+                genesis_proj = BalanceProjectionModel(
+                    account_id=genesis_id,
+                    balance_minor_units=0,
+                    version=1,
+                )
+                self.session.add(genesis_proj)
+
             init_txn = JournalTransactionModel(
                 id=uuid4(),
                 idempotency_key=f"initial-deposit-{account_id}",
-                description="Initial Account Deposit",
+                description="Capital Inflow / Initial Deposit",
                 posted_at=datetime.now(UTC),
             )
             self.session.add(init_txn)
-            entry = JournalEntryModel(
+
+            entry_dst = JournalEntryModel(
                 id=uuid4(),
                 transaction_id=init_txn.id,
                 account_id=account_id,
                 entry_type=EntryType.DEBIT.value,
                 amount_minor_units=initial_deposit_minor_units,
             )
-            self.session.add(entry)
+            entry_src = JournalEntryModel(
+                id=uuid4(),
+                transaction_id=init_txn.id,
+                account_id=genesis_id,
+                entry_type=EntryType.CREDIT.value,
+                amount_minor_units=initial_deposit_minor_units,
+            )
+            self.session.add_all([entry_dst, entry_src])
 
         await self.session.flush()
 
