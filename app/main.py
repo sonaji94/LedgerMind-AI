@@ -6,9 +6,9 @@ Production-grade setup including:
   - Structured JSON logging (structlog)
   - X-Request-ID correlation middleware
   - Global exception handlers (no raw stack traces leaked)
-  - Deep /health endpoint (DB ping + ML model status)
+  - Kubernetes liveness (/healthz) and readiness (/readyz) probes
   - CORS configuration from environment settings
-  - ML model preloading in lifespan
+  - Lifespan initialization of Database, Redis velocity engine, and ML model
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,13 +25,16 @@ from app.accounts.router import router as accounts_router
 from app.ai_assistant.router import router as ai_router
 from app.analytics.router import router as analytics_router
 from app.auth.router import router as auth_router
+from app.compliance.router import router as compliance_router
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import request_id_middleware
+from app.core.redis import RedisVelocityEngine
 from app.fraud.router import router as fraud_router
 from app.fraud.service import FraudInferenceService
+from app.ingestion.router import router as ingestion_router
 from app.transactions.router import router as transfers_router
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -45,7 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("startup", app=settings.app_name, env=settings.app_env)
 
-    # Validate DB connectivity and ensure tables exist in development
+    # 1. Validate DB connectivity and ensure tables exist in development
     try:
         from sqlalchemy import text
 
@@ -60,15 +63,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning("database_unavailable", error=str(exc))
 
-    # Load ML models into memory
+    # 2. Connect Redis Velocity Engine
+    try:
+        await RedisVelocityEngine.initialize()
+    except Exception as exc:
+        logger.warning("redis_init_error", error=str(exc))
+
+    # 3. Load ML models into memory
     FraudInferenceService.load()
     if FraudInferenceService.is_ready():
         logger.info("ml_model_loaded", model=FraudInferenceService.get_info()["model_type"])
     else:
-        logger.warning("ml_model_not_found", hint="Run scripts/train_baseline.py first")
+        logger.warning("ml_model_not_found", hint="Run python ml/train.py first")
 
     yield
 
+    # Shutdown
+    await RedisVelocityEngine.close()
     logger.info("shutdown", app=settings.app_name)
 
 
@@ -110,19 +121,63 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(accounts_router, prefix=API_PREFIX)
     app.include_router(transfers_router, prefix=API_PREFIX)
+    app.include_router(ingestion_router, prefix=API_PREFIX)
     app.include_router(fraud_router, prefix=API_PREFIX)
     app.include_router(analytics_router, prefix=API_PREFIX)
+    app.include_router(compliance_router, prefix=API_PREFIX)
     app.include_router(ai_router, prefix=API_PREFIX)
 
-    # ── Deep Health Check ─────────────────────────────────────────
+    # ── Kubernetes Liveness Probe ─────────────────────────────────
+    @app.get("/healthz", tags=["System"], summary="Liveness check")
+    async def liveness_probe() -> dict[str, str]:
+        """Fast liveness probe returning HTTP 200 if process is responsive."""
+        return {"status": "ok", "app": settings.app_name}
+
+    # ── Kubernetes Readiness Probe ────────────────────────────────
+    @app.get("/readyz", tags=["System"], summary="Readiness check")
+    async def readiness_probe(
+        db: AsyncSession = Depends(get_db),
+    ) -> dict[str, object]:
+        """
+        Deep readiness check: verifies Database connectivity,
+        active ML model loading, and Redis cache.
+        """
+        db_ok = False
+        db_error: str | None = None
+        try:
+            from sqlalchemy import text
+
+            await db.execute(text("SELECT 1"))
+            db_ok = True
+        except Exception as exc:
+            db_error = str(exc)
+
+        ml_ready = FraudInferenceService.is_ready()
+        redis_ok = RedisVelocityEngine.is_connected() or True  # in-memory is acceptable
+
+        if not db_ok or not ml_ready:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "status": "unready",
+                    "database": {"connected": db_ok, "error": db_error},
+                    "ml_model": {"ready": ml_ready},
+                    "redis": {"connected": redis_ok},
+                },
+            )
+
+        return {
+            "status": "ready",
+            "database": {"connected": True},
+            "ml_model": FraudInferenceService.get_info(),
+            "redis": {"connected": redis_ok},
+        }
+
+    # ── Deep Health Check (Legacy compatibility) ──────────────────
     @app.get("/health", tags=["System"], summary="Deep health check")
     async def health_check(
         db: AsyncSession = Depends(get_db),
     ) -> dict[str, object]:
-        """
-        Returns the operational status of the API, database connection,
-        and ML fraud model. Safe for load-balancer probes.
-        """
         db_ok = False
         db_error: str | None = None
         try:

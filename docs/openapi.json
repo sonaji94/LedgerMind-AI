@@ -265,6 +265,68 @@
         }
       }
     },
+    "/api/v1/transactions/ingest": {
+      "post": {
+        "tags": [
+          "Transaction Ingestion"
+        ],
+        "summary": "Ingest and evaluate live transaction stream",
+        "description": "High-throughput transaction ingestion endpoint:\n1. Idempotency Check (Idempotency-Key header or transaction_id)\n2. Velocity Store Record in Redis / In-memory\n3. Real-Time Machine Learning & TreeSHAP Anomaly Scoring\n4. If Suspicious: Quarantine funds, hold transfer, return risk factors\n5. If Safe: Atomically commit dual-legged ledger transfer",
+        "operationId": "ingest_transaction_api_v1_transactions_ingest_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestionTransaction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Ingest Transaction Api V1 Transactions Ingest Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/fraud/predict": {
       "post": {
         "tags": [
@@ -351,6 +413,206 @@
         }
       }
     },
+    "/api/v1/compliance/freeze": {
+      "post": {
+        "tags": [
+          "Compliance & Audit"
+        ],
+        "summary": "Freeze Account Endpoint",
+        "description": "Freeze an account and emit an append-only domain event.\nRequires role: Compliance_Officer or Admin.",
+        "operationId": "freeze_account_endpoint_api_v1_compliance_freeze_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Freeze Account Endpoint Api V1 Compliance Freeze Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/compliance/step-up-2fa": {
+      "post": {
+        "tags": [
+          "Compliance & Audit"
+        ],
+        "summary": "Step Up 2Fa Endpoint",
+        "description": "Trigger biometric / hardware FIDO2 step-up challenge for suspicious activity.",
+        "operationId": "step_up_2fa_endpoint_api_v1_compliance_step_up_2fa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUp2FARequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Step Up 2Fa Endpoint Api V1 Compliance Step Up 2Fa Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/compliance/sar-generate": {
+      "post": {
+        "tags": [
+          "Compliance & Audit"
+        ],
+        "summary": "Generate Sar Report Endpoint",
+        "description": "Generate formal FinCEN Form 111 Suspicious Activity Report (SAR) with PII masking.",
+        "operationId": "generate_sar_report_endpoint_api_v1_compliance_sar_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SARGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Generate Sar Report Endpoint Api V1 Compliance Sar Generate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/compliance/audit-logs": {
+      "get": {
+        "tags": [
+          "Compliance & Audit"
+        ],
+        "summary": "Get Audit Logs Endpoint",
+        "description": "Retrieve immutable compliance audit log history.",
+        "operationId": "get_audit_logs_endpoint_api_v1_compliance_audit_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditLogResponse"
+                  },
+                  "title": "Response Get Audit Logs Endpoint Api V1 Compliance Audit Logs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ai/ask": {
       "post": {
         "tags": [
@@ -393,13 +655,62 @@
         }
       }
     },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Liveness check",
+        "description": "Fast liveness probe returning HTTP 200 if process is responsive.",
+        "operationId": "liveness_probe_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Liveness Probe Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Readiness check",
+        "description": "Deep readiness check: verifies Database connectivity,\nactive ML model loading, and Redis cache.",
+        "operationId": "readiness_probe_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Readiness Probe Readyz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
           "System"
         ],
         "summary": "Deep health check",
-        "description": "Returns the operational status of the API, database connection,\nand ML fraud model. Safe for load-balancer probes.",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -590,6 +901,67 @@
         ],
         "title": "AnalyticsSummaryResponse"
       },
+      "AuditLogResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "operator_id": {
+            "type": "string",
+            "title": "Operator Id"
+          },
+          "operator_role": {
+            "type": "string",
+            "title": "Operator Role"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "justification_reason": {
+            "type": "string",
+            "title": "Justification Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "operator_id",
+          "operator_role",
+          "action",
+          "target_type",
+          "target_id",
+          "ip_address",
+          "justification_reason",
+          "created_at"
+        ],
+        "title": "AuditLogResponse"
+      },
       "FraudPredictionRequest": {
         "properties": {
           "transaction_id": {
@@ -684,6 +1056,27 @@
         ],
         "title": "FraudPredictionResponse"
       },
+      "FreezeAccountRequest": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id",
+            "description": "Target account ID to suspend"
+          },
+          "justification_reason": {
+            "type": "string",
+            "minLength": 10,
+            "title": "Justification Reason",
+            "description": "Mandatory audit justification"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "justification_reason"
+        ],
+        "title": "FreezeAccountRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -696,6 +1089,156 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "IngestionTransaction": {
+        "properties": {
+          "transaction_id": {
+            "type": "string",
+            "title": "Transaction Id",
+            "description": "Unique transaction idempotency identifier"
+          },
+          "source_account_id": {
+            "type": "string",
+            "title": "Source Account Id",
+            "description": "Originating account ID"
+          },
+          "destination_account_id": {
+            "type": "string",
+            "title": "Destination Account Id",
+            "description": "Destination account ID"
+          },
+          "amount_minor_units": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Amount Minor Units",
+            "description": "Monetary amount in integer minor units (cents)"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "title": "Currency",
+            "default": "EUR"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id",
+            "description": "Client device fingerprint hash"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address",
+            "description": "Originating client IP address"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "GPS latitude of POS/terminal"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "GPS longitude of POS/terminal"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel",
+            "description": "ONLINE_CNP, POS_CHIP, WIRE_TRANSFER, ATM",
+            "default": "ONLINE_CNP"
+          },
+          "user_historical_avg_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Historical Avg Minor",
+            "description": "Precomputed 30-day average amount"
+          },
+          "prev_latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Latitude"
+          },
+          "prev_longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Longitude"
+          },
+          "prev_timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Timestamp"
+          },
+          "is_new_device": {
+            "type": "boolean",
+            "title": "Is New Device",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "transaction_id",
+          "source_account_id",
+          "destination_account_id",
+          "amount_minor_units"
+        ],
+        "title": "IngestionTransaction",
+        "description": "Pydantic model representing a live transaction event ingested from webhook."
       },
       "JournalEntryItem": {
         "properties": {
@@ -799,6 +1342,81 @@
         ],
         "title": "ModelInfoResponse"
       },
+      "SARGenerateRequest": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "amount_eur": {
+            "type": "number",
+            "title": "Amount Eur"
+          },
+          "fraud_probability": {
+            "type": "number",
+            "title": "Fraud Probability"
+          },
+          "detected_typology": {
+            "type": "string",
+            "title": "Detected Typology"
+          },
+          "red_flag_indicators": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Red Flag Indicators"
+          },
+          "apply_pii_masking": {
+            "type": "boolean",
+            "title": "Apply Pii Masking",
+            "default": true
+          },
+          "justification_reason": {
+            "type": "string",
+            "title": "Justification Reason",
+            "default": "Regulatory filing for confirmed anomalous financial velocity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "incident_id",
+          "account_id",
+          "amount_eur",
+          "fraud_probability",
+          "detected_typology",
+          "red_flag_indicators"
+        ],
+        "title": "SARGenerateRequest"
+      },
+      "StepUp2FARequest": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "justification_reason": {
+            "type": "string",
+            "minLength": 5,
+            "title": "Justification Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "account_id",
+          "incident_id",
+          "justification_reason"
+        ],
+        "title": "StepUp2FARequest"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -813,6 +1431,11 @@
           "expires_in_seconds": {
             "type": "integer",
             "title": "Expires In Seconds"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": "Analyst"
           }
         },
         "type": "object",
@@ -1005,6 +1628,12 @@
           "type"
         ],
         "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }

@@ -69,6 +69,14 @@ class Settings(BaseSettings):
             return ["*"]
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    # ── Redis ─────────────────────────────────────────────────────
+    redis_url: str = "redis://localhost:6379/0"
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_password: str = ""
+    redis_db: int = 0
+    redis_enabled: bool = True
+
     # ── Security ──────────────────────────────────────────────────
     secret_key: str = "change-this-to-a-random-secret-key"
     access_token_expire_minutes: int = 30
