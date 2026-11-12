@@ -484,11 +484,12 @@ with tab_triage:
 
             with c_act:
                 a1, a2, a3, a4 = st.columns(4)
-                if a1.button("🛑 Freeze", key=f"frz_{inc['id']}", use_container_width=True):
-                    # Call backend API
-                    res = api_client.freeze_account(inc["origin_acc"], f"Investigator freeze for {inc['id']}")
+                if a1.button("🛑 Confirm Fraud (Freeze)", key=f"frz_{inc['id']}", use_container_width=True):
+                    # Call backend API: freeze account & submit ground-truth label = 1
+                    api_client.freeze_account(inc["origin_acc"], f"Investigator fraud freeze for {inc['id']}")
+                    api_client.submit_label_feedback(inc["id"], 1, f"Analyst confirmed fraud for {inc['id']}")
                     inc["status"] = "FROZEN"
-                    st.toast(f"🛑 Account {inc['origin_acc']} FROZEN via Backend REST API! Audit log persisted.")
+                    st.toast(f"🛑 Account {inc['origin_acc']} FROZEN & Ground-Truth Fraud Label (1) committed to PostgreSQL!")
                     st.rerun()
 
                 if a2.button("🔒 2FA Challenge", key=f"2fa_{inc['id']}", use_container_width=True):
@@ -497,9 +498,11 @@ with tab_triage:
                     st.toast(f"📱 Step-up FIDO2 challenge dispatched for {inc['id']}.")
                     st.rerun()
 
-                if a3.button("✅ Whitelist", key=f"wht_{inc['id']}", use_container_width=True):
+                if a3.button("✅ Mark Safe (FP)", key=f"wht_{inc['id']}", use_container_width=True):
+                    # Call backend API: submit ground-truth label = 0 (legitimate false positive)
+                    api_client.submit_label_feedback(inc["id"], 0, f"Analyst marked safe / false positive for {inc['id']}")
                     inc["status"] = "CLEARED"
-                    st.toast(f"✅ {inc['id']} verified and marked legitimate.")
+                    st.toast(f"✅ {inc['id']} marked SAFE. Ground-truth label (0) saved for active retraining.")
                     st.rerun()
 
                 if a4.button("🔍 Inspect", key=f"insp_{inc['id']}", use_container_width=True):
@@ -644,6 +647,13 @@ with tab_ledger:
     st.markdown("#### 📜 Recent Journal Transactions")
     if stats["recent_txns"]:
         st.dataframe(pd.DataFrame(stats["recent_txns"]), use_container_width=True)
+
+    st.markdown("#### 💳 Razorpay Live Payment & Payout Reconciliation Feed")
+    rzp_events = api_client.get_razorpay_events(limit=25)
+    if rzp_events:
+        st.dataframe(pd.DataFrame(rzp_events), use_container_width=True)
+    else:
+        st.info("No incoming Razorpay webhooks received yet. Run `python scripts/send_razorpay_test_webhook.py` to stream live payment and payout webhooks.")
 
 # ═════════════════════════════════════════════════════════════════════
 # TAB 5: Immutable Operator Audit Trail

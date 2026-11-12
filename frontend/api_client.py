@@ -103,10 +103,25 @@ class BackendAPIClient:
         res = self._client.post("/compliance/sar-generate", json=payload)
         return res.json()
 
-    def get_audit_logs(self, limit: int = 25) -> list[dict[str, Any]]:
-        """Retrieve operator compliance audit trail."""
+    def submit_label_feedback(
+        self,
+        entity_id: str,
+        ground_truth_label: int,
+        justification_reason: str,
+    ) -> dict[str, Any]:
+        """Submit analyst ground-truth classification (1=Fraud, 0=Safe) to PostgreSQL."""
+        payload = {
+            "entity_id": entity_id,
+            "ground_truth_label": ground_truth_label,
+            "justification_reason": justification_reason,
+        }
+        res = self._client.post("/webhooks/razorpay/feedback", json=payload)
+        return res.json()
+
+    def get_razorpay_events(self, limit: int = 25) -> list[dict[str, Any]]:
+        """Query recent Razorpay webhook events and ledger reconciliation states."""
         try:
-            res = self._client.get(f"/compliance/audit-logs?limit={limit}")
+            res = self._client.get(f"/webhooks/razorpay/events?limit={limit}")
             return res.json() if res.status_code == 200 else []
         except Exception:
             return []

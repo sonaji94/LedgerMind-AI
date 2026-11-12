@@ -126,7 +126,17 @@ async def get_current_actor(
     return decode_access_token(credentials.credentials)
 
 
-def require_role(allowed_roles: list[str]) -> Callable[..., Coroutine[Any, Any, TokenPayload]]:
+async def get_current_user_role(
+    actor: TokenPayload = Depends(get_current_actor),
+) -> UserRole:
+    """Extract validated UserRole enum from current authenticated actor."""
+    try:
+        return UserRole(actor.role)
+    except ValueError:
+        return UserRole.ANALYST
+
+
+def require_role(allowed_roles: list[str | UserRole]) -> Callable[..., Coroutine[Any, Any, TokenPayload]]:
     """
     FastAPI dependency factory enforcing Role-Based Access Control.
     Usage:
@@ -136,7 +146,7 @@ def require_role(allowed_roles: list[str]) -> Callable[..., Coroutine[Any, Any, 
     async def _role_checker(
         actor: TokenPayload = Depends(get_current_actor),
     ) -> TokenPayload:
-        normalized_allowed = [r.lower() for r in allowed_roles]
+        normalized_allowed = [str(r.value if isinstance(r, UserRole) else r).lower() for r in allowed_roles]
         if actor.role.lower() not in normalized_allowed and actor.role.lower() != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
