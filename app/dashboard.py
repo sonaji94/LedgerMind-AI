@@ -851,12 +851,20 @@ with tab_investigate:
         in_hour = st.slider("Time of Execution (24-Hour Cycle UTC)", 0, 23, int(inv_hour))
         in_time_sec = in_hour * 3600.0
 
-        st.markdown("#### 🧬 Principal Anomaly Factors (PCA Components V1 - V28)")
-        st.caption("Normalized components capturing behavioral, geographical, and card-velocity signals.")
-        in_v14 = st.slider("V14 (Strong Negative Anomaly Correlation)", -25.0, 10.0, float(inv_v14), 0.1)
-        in_v17 = st.slider("V17 (Inverse Fraud Direction)", -25.0, 10.0, float(inv_v17), 0.1)
-        in_v4 = st.slider("V4 (Positive Velocity Correlation)", -5.0, 15.0, float(inv_v4), 0.1)
-        in_v10 = st.slider("V10 (Behavioral Deviation Factor)", -20.0, 10.0, float(inv_v10), 0.1)
+        st.markdown("#### 👤 Human-Readable Risk Factors")
+        in_geo_speed = st.slider("Calculated Geo-Velocity (km/h between swipes)", 0, 1200, 950, step=25)
+        in_vel_1m = st.slider("Authorization Velocity (Transactions in last 60s)", 1, 60, 3, step=1)
+        in_new_device = st.checkbox("Unrecognized Device Fingerprint / Tor Exit Node", value=True)
+        in_dev_ratio = in_amt / 120.0
+        st.caption(f"📊 Amount is **{in_dev_ratio:.1f}x** user 30-day baseline average (€120.00).")
+
+        # ── Collapsible Advanced Model Diagnostics Drawer ──────────
+        with st.expander("🛠️ Advanced Model Diagnostics (Raw PCA Vectors V1 - V28)", expanded=False):
+            st.caption("Normalized components from credit card transaction dimensionality reduction.")
+            in_v14 = st.slider("V14 (Strong Negative Anomaly Correlation)", -25.0, 10.0, float(inv_v14), 0.1)
+            in_v17 = st.slider("V17 (Inverse Fraud Direction)", -25.0, 10.0, float(inv_v17), 0.1)
+            in_v4 = st.slider("V4 (Positive Velocity Correlation)", -5.0, 15.0, float(inv_v4), 0.1)
+            in_v10 = st.slider("V10 (Behavioral Deviation Factor)", -20.0, 10.0, float(inv_v10), 0.1)
 
     with col_result:
         st.markdown("#### 🎯 Machine Learning Inference Verdict")
