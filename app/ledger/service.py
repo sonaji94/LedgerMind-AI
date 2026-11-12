@@ -37,6 +37,14 @@ from app.ledger.models import (
     JournalTransactionModel,
 )
 
+# ── Deterministic Institutional System Accounts ───────────────────────
+GATEWAY_CLEARING_ACCOUNT_ID = UUID("00000000-0000-0000-0002-000000000001")
+MERCHANT_ESCROW_ACCOUNT_ID = UUID("00000000-0000-0000-0002-000000000002")
+GATEWAY_FEE_ACCOUNT_ID = UUID("00000000-0000-0000-0002-000000000003")
+GST_TAX_ACCOUNT_ID = UUID("00000000-0000-0000-0002-000000000004")
+PENDING_PAYOUT_HOLD_ID = UUID("00000000-0000-0000-0002-000000000005")
+FRAUD_LOSS_RESERVE_ID = UUID("00000000-0000-0000-0002-000000000006")
+
 
 class LedgerService:
     """Core transactional service for ledger operations."""
@@ -361,3 +369,235 @@ class LedgerService:
             idempotency_key=idempotency_key or f"reversal-{original_transaction_id}",
             description=f"Compensating Reversal for TX {original_transaction_id}: {reason}",
         )
+
+    async def ensure_system_account(
+        self,
+        account_id: UUID,
+        name: str,
+        currency: str = "INR",
+        initial_balance_minor: int = 10_000_000_00,  # 10M INR buffer for clearing/escrow
+    ) -> AccountModel:
+        """Retrieve or create an institutional system account with initial solvency."""
+        acc = await self.session.get(AccountModel, account_id)
+        if acc:
+            return acc
+
+        acc = AccountModel(
+            id=account_id,
+            owner_id=UUID("00000000-0000-0000-0000-000000000000"),
+            currency=currency,
+            status=AccountStatus.ACTIVE.value,
+            version=1,
+        )
+        self.session.add(acc)
+
+        proj = BalanceProjectionModel(
+            account_id=account_id,
+            balance_minor_units=initial_balance_minor,
+            version=1,
+        )
+        self.session.add(proj)
+        await self.session.flush()
+        return acc
+
+    async def reconcile_captured_payment(
+        self,
+        payment_id: str,
+        amount_minor: int,
+        fee_minor: int,
+        tax_minor: int,
+        currency: str = "INR",
+        merchant_account_id: UUID | None = None,
+        idempotency_key: str | None = None,
+    ) -> UUID:
+        """
+        Post balanced double-entry journal transaction for captured payment:
+        - Debit Gateway_Clearing_Account: gross captured amount
+        - Credit Merchant_Escrow_Liability: net amount (amount - fee - tax)
+        - Credit Gateway_Fee_Expense: fee
+        - Credit GST_Tax_Payable: tax
+        Invariant: SUM(debits) == SUM(credits) exactly in minor units (paise).
+        """
+        net_merchant = amount_minor - fee_minor - tax_minor
+        if net_merchant < 0:
+            raise AccountStatusError(f"Fee and tax ({fee_minor + tax_minor}) exceed gross amount ({amount_minor})")
+
+        # 1. Ensure system accounts exist
+        gateway_acc = await self.ensure_system_account(GATEWAY_CLEARING_ACCOUNT_ID, "Gateway Clearing", currency)
+        merchant_target = merchant_account_id or MERCHANT_ESCROW_ACCOUNT_ID
+        await self.ensure_system_account(merchant_target, "Merchant Escrow Liability", currency)
+        await self.ensure_system_account(GATEWAY_FEE_ACCOUNT_ID, "Gateway Fee Expense", currency)
+        await self.ensure_system_account(GST_TAX_ACCOUNT_ID, "GST Tax Payable", currency)
+
+        # 2. Lock accounts with SELECT FOR UPDATE
+        account_ids = [gateway_acc.id, merchant_target, GATEWAY_FEE_ACCOUNT_ID, GST_TAX_ACCOUNT_ID]
+        res = await self.session.execute(
+            select(BalanceProjectionModel)
+            .where(BalanceProjectionModel.account_id.in_(account_ids))
+            .with_for_update()
+        )
+        projections = {p.account_id: p for p in res.scalars().all()}
+
+        # 3. Create Balanced Journal Transaction
+        txn_id = uuid4()
+        now = datetime.now(UTC)
+        effective_idemp = idempotency_key or f"reconcile-pay-{payment_id}"
+
+        db_txn = JournalTransactionModel(
+            id=txn_id,
+            idempotency_key=effective_idemp,
+            description=f"Razorpay Capture Reconciliation {payment_id}",
+            posted_at=now,
+        )
+        self.session.add(db_txn)
+
+        # Legs:
+        # 1 Debit: Gross amount to Clearing
+        entry_clearing = JournalEntryModel(
+            id=uuid4(),
+            transaction_id=txn_id,
+            account_id=gateway_acc.id,
+            entry_type=EntryType.DEBIT.value,
+            amount_minor_units=amount_minor,
+        )
+        # 3 Credits: Net to Merchant, Fee to Expense, Tax to GST
+        entry_net = JournalEntryModel(
+            id=uuid4(),
+            transaction_id=txn_id,
+            account_id=merchant_target,
+            entry_type=EntryType.CREDIT.value,
+            amount_minor_units=net_merchant,
+        )
+        entry_fee = JournalEntryModel(
+            id=uuid4(),
+            transaction_id=txn_id,
+            account_id=GATEWAY_FEE_ACCOUNT_ID,
+            entry_type=EntryType.CREDIT.value,
+            amount_minor_units=fee_minor if fee_minor > 0 else 1,  # check constraint positive
+        )
+        entry_tax = JournalEntryModel(
+            id=uuid4(),
+            transaction_id=txn_id,
+            account_id=GST_TAX_ACCOUNT_ID,
+            entry_type=EntryType.CREDIT.value,
+            amount_minor_units=tax_minor if tax_minor > 0 else 1,
+        )
+
+        entries_to_add = [entry_clearing, entry_net]
+        if fee_minor > 0:
+            entries_to_add.append(entry_fee)
+        if tax_minor > 0:
+            entries_to_add.append(entry_tax)
+
+        self.session.add_all(entries_to_add)
+
+        # 4. Update Balance Projections
+        if gateway_acc.id in projections:
+            projections[gateway_acc.id].balance_minor_units += amount_minor
+            projections[gateway_acc.id].last_transaction_id = txn_id
+            projections[gateway_acc.id].updated_at = now
+        if merchant_target in projections:
+            projections[merchant_target].balance_minor_units += net_merchant
+            projections[merchant_target].last_transaction_id = txn_id
+            projections[merchant_target].updated_at = now
+        if fee_minor > 0 and GATEWAY_FEE_ACCOUNT_ID in projections:
+            projections[GATEWAY_FEE_ACCOUNT_ID].balance_minor_units += fee_minor
+            projections[GATEWAY_FEE_ACCOUNT_ID].last_transaction_id = txn_id
+            projections[GATEWAY_FEE_ACCOUNT_ID].updated_at = now
+        if tax_minor > 0 and GST_TAX_ACCOUNT_ID in projections:
+            projections[GST_TAX_ACCOUNT_ID].balance_minor_units += tax_minor
+            projections[GST_TAX_ACCOUNT_ID].last_transaction_id = txn_id
+            projections[GST_TAX_ACCOUNT_ID].updated_at = now
+
+        # 5. Emit Domain Event
+        event = DomainEventModel(
+            aggregate_id=txn_id,
+            aggregate_type="PaymentCaptureReconciliation",
+            event_type="PaymentCapturedReconciled",
+            payload={
+                "payment_id": payment_id,
+                "amount_minor": amount_minor,
+                "fee_minor": fee_minor,
+                "tax_minor": tax_minor,
+                "net_merchant": net_merchant,
+                "currency": currency,
+            },
+            version=1,
+        )
+        self.session.add(event)
+        await self.session.flush()
+        return txn_id
+
+    async def reconcile_payout_hold(
+        self,
+        payout_id: str,
+        amount_minor: int,
+        currency: str = "INR",
+        merchant_account_id: UUID | None = None,
+        idempotency_key: str | None = None,
+    ) -> UUID:
+        """
+        On payout.initiated: move funds from Merchant Escrow to Pending_Payout_Hold.
+        Debit Merchant_Escrow_Liability, Credit Pending_Payout_Hold.
+        """
+        merchant_src = merchant_account_id or MERCHANT_ESCROW_ACCOUNT_ID
+        await self.ensure_system_account(merchant_src, "Merchant Escrow Liability", currency)
+        await self.ensure_system_account(PENDING_PAYOUT_HOLD_ID, "Pending Payout Hold", currency)
+
+        txn = await self.execute_transfer(
+            source_account_id=merchant_src,
+            destination_account_id=PENDING_PAYOUT_HOLD_ID,
+            amount=Money(minor_units=amount_minor, currency=currency),
+            idempotency_key=idempotency_key or f"payout-hold-{payout_id}",
+            description=f"Ledger Hold for Initiated Payout {payout_id}",
+        )
+        return txn.transaction_id
+
+    async def reconcile_payout_reversed(
+        self,
+        payout_id: str,
+        amount_minor: int,
+        currency: str = "INR",
+        merchant_account_id: UUID | None = None,
+        idempotency_key: str | None = None,
+    ) -> UUID:
+        """
+        On payout.reversed: release hold and return funds back to Merchant Escrow.
+        Compensating entry: Debit Pending_Payout_Hold, Credit Merchant_Escrow_Liability.
+        """
+        merchant_dst = merchant_account_id or MERCHANT_ESCROW_ACCOUNT_ID
+        await self.ensure_system_account(PENDING_PAYOUT_HOLD_ID, "Pending Payout Hold", currency)
+        await self.ensure_system_account(merchant_dst, "Merchant Escrow Liability", currency)
+
+        txn = await self.execute_transfer(
+            source_account_id=PENDING_PAYOUT_HOLD_ID,
+            destination_account_id=merchant_dst,
+            amount=Money(minor_units=amount_minor, currency=currency),
+            idempotency_key=idempotency_key or f"payout-reverse-{payout_id}",
+            description=f"Compensating Release of Reversed Payout {payout_id}",
+        )
+        return txn.transaction_id
+
+    async def reconcile_dispute_created(
+        self,
+        dispute_id: str,
+        payment_id: str,
+        amount_minor: int,
+        currency: str = "INR",
+        idempotency_key: str | None = None,
+    ) -> UUID:
+        """
+        On payment.dispute.created: move contested amount to Fraud_Loss_Reserve.
+        Debit Fraud_Loss_Reserve, Credit Gateway_Clearing_Account.
+        """
+        await self.ensure_system_account(FRAUD_LOSS_RESERVE_ID, "Fraud Loss Reserve", currency)
+        await self.ensure_system_account(GATEWAY_CLEARING_ACCOUNT_ID, "Gateway Clearing", currency)
+
+        txn = await self.execute_transfer(
+            source_account_id=FRAUD_LOSS_RESERVE_ID,
+            destination_account_id=GATEWAY_CLEARING_ACCOUNT_ID,
+            amount=Money(minor_units=amount_minor, currency=currency),
+            idempotency_key=idempotency_key or f"dispute-reserve-{dispute_id}",
+            description=f"Clawback Reserve for Payment Dispute {dispute_id} on {payment_id}",
+        )
+        return txn.transaction_id

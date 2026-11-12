@@ -176,3 +176,36 @@ class AuditLogModel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), index=True
     )
+
+
+class WebhookEventModel(Base):
+    """
+    Idempotent store for upstream Payment Gateway & Payout webhooks (e.g., Razorpay).
+    Guarantees that retry deliveries never trigger double ledger credits or dual processing.
+    Also serves as the authoritative ground-truth store for analyst-confirmed fraud feedback.
+    """
+    __tablename__ = "webhook_events"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    event_id: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), index=True, nullable=False)
+    amount_minor_units: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    fee_minor_units: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    tax_minor_units: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="RECEIVED", index=True)
+    risk_score: Mapped[float | None] = mapped_column(nullable=True)
+    risk_decision: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ground_truth_label: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # 1=Fraud, 0=Legitimate
+    labeled_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    labeled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_payload: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    journal_transaction_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), index=True
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
