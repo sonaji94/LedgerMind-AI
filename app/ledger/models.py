@@ -209,3 +209,29 @@ class WebhookEventModel(Base):
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), index=True
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class InferenceLogModel(Base):
+    """
+    Immutable audit record for every scored feature vector and prediction event.
+    Stores features, model components (XGBoost, Isolation Forest), decision, latency,
+    and TreeSHAP attribution drivers for Population Stability Index (PSI) drift monitoring.
+    """
+    __tablename__ = "inference_logs"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    transaction_id: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
+    features_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    xgb_score: Mapped[float] = mapped_column(nullable=False)
+    anomaly_score: Mapped[float] = mapped_column(nullable=False)
+    hybrid_score: Mapped[float] = mapped_column(nullable=False, index=True)
+    decision: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # CLEARED, STEP_UP_2FA, INTERCEPTED
+    latency_ms: Mapped[float] = mapped_column(nullable=False)
+    shap_top_drivers: Mapped[list[dict[str, object]] | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC), index=True
+    )

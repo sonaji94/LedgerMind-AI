@@ -37,6 +37,8 @@ from app.fraud.service import FraudInferenceService
 from app.ingestion.router import router as ingestion_router
 from app.transactions.router import router as transfers_router
 from app.webhooks.router import router as webhooks_router
+from backend.inference import HybridFraudInferenceService
+from backend.monitoring import router as monitoring_router
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -70,10 +72,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         logger.warning("redis_init_error", error=str(exc))
 
-    # 3. Load ML models into memory
+    # 3. Load Production ML models into memory
+    HybridFraudInferenceService.load()
     FraudInferenceService.load()
-    if FraudInferenceService.is_ready():
-        logger.info("ml_model_loaded", model=FraudInferenceService.get_info()["model_type"])
+    if HybridFraudInferenceService.is_ready():
+        logger.info("ml_model_loaded", **HybridFraudInferenceService.get_info())
     else:
         logger.warning("ml_model_not_found", hint="Run python ml/train.py first")
 
@@ -128,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, prefix=API_PREFIX)
     app.include_router(compliance_router, prefix=API_PREFIX)
     app.include_router(ai_router, prefix=API_PREFIX)
+    app.include_router(monitoring_router, prefix=API_PREFIX)
 
     # ── Kubernetes Liveness Probe ─────────────────────────────────
     @app.get("/healthz", tags=["System"], summary="Liveness check")
@@ -154,7 +158,7 @@ def create_app() -> FastAPI:
         except Exception as exc:
             db_error = str(exc)
 
-        ml_ready = FraudInferenceService.is_ready()
+        ml_ready = HybridFraudInferenceService.is_ready()
         redis_ok = RedisVelocityEngine.is_connected() or True  # in-memory is acceptable
 
         if not db_ok or not ml_ready:
@@ -171,7 +175,7 @@ def create_app() -> FastAPI:
         return {
             "status": "ready",
             "database": {"connected": True},
-            "ml_model": FraudInferenceService.get_info(),
+            "ml_model": HybridFraudInferenceService.get_info(),
             "redis": {"connected": redis_ok},
         }
 
@@ -190,8 +194,8 @@ def create_app() -> FastAPI:
         except Exception as exc:
             db_error = str(exc)
 
-        ml_info = FraudInferenceService.get_info()
-        overall = "healthy" if db_ok and FraudInferenceService.is_ready() else "degraded"
+        ml_info = HybridFraudInferenceService.get_info()
+        overall = "healthy" if db_ok and HybridFraudInferenceService.is_ready() else "degraded"
 
         return {
             "status": overall,
