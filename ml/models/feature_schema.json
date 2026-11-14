@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.0.0",
+  "model_architecture": "Hybrid XGBoost Champion + Unsupervised Isolation Forest",
+  "input_tensor_name": "float_input",
+  "input_shape": [
+    null,
+    14
+  ],
+  "feature_count": 14,
+  "features": [
+    {
+      "index": 0,
+      "name": "amount_minor",
+      "dtype": "int64",
+      "unit": "minor_units (paise/cents)",
+      "min": 1,
+      "max": 100000000,
+      "description": "Monetary transfer amount stored strictly as integer minor units"
+    },
+    {
+      "index": 1,
+      "name": "velocity_instrument_60s",
+      "dtype": "int64",
+      "unit": "transactions",
+      "min": 0,
+      "max": 100,
+      "description": "Rolling transaction count on instrument/UPI VPA within past 60 seconds"
+    },
+    {
+      "index": 2,
+      "name": "velocity_instrument_1h",
+      "dtype": "int64",
+      "unit": "transactions",
+      "min": 0,
+      "max": 500,
+      "description": "Rolling transaction count on instrument/UPI VPA within past 1 hour"
+    },
+    {
+      "index": 3,
+      "name": "distinct_cards_ip_10m",
+      "dtype": "int64",
+      "unit": "cards",
+      "min": 0,
+      "max": 50,
+      "description": "Distinct card/VPA instruments attempted from source IP in past 10 minutes"
+    },
+    {
+      "index": 4,
+      "name": "distinct_cards_email_10m",
+      "dtype": "int64",
+      "unit": "cards",
+      "min": 0,
+      "max": 50,
+      "description": "Distinct card instruments attempted with customer email in past 10 minutes"
+    },
+    {
+      "index": 5,
+      "name": "amount_z_score",
+      "dtype": "float32",
+      "unit": "standard_deviations",
+      "min": -5.0,
+      "max": 20.0,
+      "description": "Normalized Z-score relative to user/merchant 30-day baseline"
+    },
+    {
+      "index": 6,
+      "name": "amount_ratio_30d",
+      "dtype": "float32",
+      "unit": "ratio",
+      "min": 0.0,
+      "max": 100.0,
+      "description": "Ratio of current transaction amount vs 30-day rolling mean"
+    },
+    {
+      "index": 7,
+      "name": "account_age_days",
+      "dtype": "float32",
+      "unit": "days",
+      "min": 0.0,
+      "max": 3650.0,
+      "description": "Elapsed days since customer/account profile creation"
+    },
+    {
+      "index": 8,
+      "name": "hours_since_bank_change",
+      "dtype": "float32",
+      "unit": "hours",
+      "min": 0.0,
+      "max": 87600.0,
+      "description": "Hours elapsed since bank account or payout destination modification"
+    },
+    {
+      "index": 9,
+      "name": "payout_to_balance_ratio",
+      "dtype": "float32",
+      "unit": "ratio",
+      "min": 0.0,
+      "max": 1.0,
+      "description": "Ratio of payout requested to available ledger balance (ATO flag)"
+    },
+    {
+      "index": 10,
+      "name": "is_disposable_email",
+      "dtype": "int64",
+      "unit": "boolean_flag",
+      "min": 0,
+      "max": 1,
+      "description": "Binary flag indicating high-risk disposable or burner email domain"
+    },
+    {
+      "index": 11,
+      "name": "is_international_card",
+      "dtype": "int64",
+      "unit": "boolean_flag",
+      "min": 0,
+      "max": 1,
+      "description": "Binary flag indicating cross-border/international card issuance"
+    },
+    {
+      "index": 12,
+      "name": "hour_of_day",
+      "dtype": "int64",
+      "unit": "hour",
+      "min": 0,
+      "max": 23,
+      "description": "Local UTC hour of transaction initiation (0 to 23)"
+    },
+    {
+      "index": 13,
+      "name": "day_of_week",
+      "dtype": "int64",
+      "unit": "day_index",
+      "min": 0,
+      "max": 6,
+      "description": "Day of week (0=Monday, 6=Sunday)"
+    }
+  ],
+  "expected_order": [
+    "amount_minor",
+    "velocity_instrument_60s",
+    "velocity_instrument_1h",
+    "distinct_cards_ip_10m",
+    "distinct_cards_email_10m",
+    "amount_z_score",
+    "amount_ratio_30d",
+    "account_age_days",
+    "hours_since_bank_change",
+    "payout_to_balance_ratio",
+    "is_disposable_email",
+    "is_international_card",
+    "hour_of_day",
+    "day_of_week"
+  ],
+  "decision_thresholds": {
+    "cleared_cutoff": 0.45,
+    "step_up_2fa_cutoff": 0.8,
+    "action_mapping": {
+      "< 0.45": "CLEARED (instant settlement)",
+      "0.45 <= score < 0.80": "STEP-UP 2FA (hold & require OTP/biometric verification)",
+      ">= 0.80": "INTERCEPTED / FROZEN (immediate ledger lock)"
+    }
+  }
+}

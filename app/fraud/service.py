@@ -12,7 +12,10 @@ from typing import Any
 
 import joblib
 import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+except Exception:
+    pd = None  # type: ignore
 
 from app.core.config import get_settings
 
@@ -115,6 +118,17 @@ class FraudInferenceService:
     def load(cls) -> None:
         """Load model, preprocessor, and initialize SHAP TreeExplainer with fallback resilience."""
         try:
+            from backend.inference import HybridFraudInferenceService
+            HybridFraudInferenceService.load()
+            if HybridFraudInferenceService.is_ready():
+                cls._model = HybridFraudInferenceService
+                cls._threshold = HybridFraudInferenceService._optimal_threshold
+                cls._model_type = "Hybrid-XGBoost-IsolationForest"
+                return
+        except Exception:
+            pass
+
+        try:
             if DEFAULT_PREPROCESSOR_PATH.is_file():
                 cls._preprocessor = joblib.load(DEFAULT_PREPROCESSOR_PATH)
         except Exception:
@@ -177,6 +191,12 @@ class FraudInferenceService:
         tuple[risk_score, is_suspicious, latency_ms, top_shap_contributions]
         """
         start_t = time.perf_counter()
+
+        if cls._model_type == "Hybrid-XGBoost-IsolationForest":
+            from backend.inference import HybridFraudInferenceService
+            res = HybridFraudInferenceService.score_transaction(features, explain=explain)
+            top_shap = {d["label"]: d["shap_value"] for d in res.top_drivers} if res.top_drivers else None
+            return res.risk_score, res.is_suspicious, res.latency_ms, top_shap
 
         record: dict[str, float] = {
             "Time": float(features.get("Time", 0.0)),
