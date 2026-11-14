@@ -1,0 +1,68 @@
+name: Production CI/CD & Cloud Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate-and-test:
+    name: Lint, Test & Validate ONNX Engine
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+      APP_ENV: testing
+      DATABASE_URL: sqlite+aiosqlite:///:memory:
+      DISABLE_SQLALCHEMY_CEXT: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install build and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio aiosqlite ruff
+
+      - name: Run Ruff Code Quality Linter
+        run: ruff check .
+
+      - name: Train and Export Production ONNX Hybrid Models
+        run: |
+          python ml/train.py
+          python ml/export_onnx.py
+
+      - name: Execute Full Test Suite
+        run: |
+          pytest tests/ml/test_hybrid_inference.py tests/api/test_api_endpoints.py -v
+
+  deploy:
+    name: Trigger Render Production Deployment
+    needs: validate-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy Hook (API)
+        if: env.RENDER_API_DEPLOY_HOOK != ''
+        env:
+          RENDER_API_DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+        run: |
+          curl -X POST -f "$RENDER_API_DEPLOY_HOOK"
+
+      - name: Trigger Render Deploy Hook (Frontend)
+        if: env.RENDER_UI_DEPLOY_HOOK != ''
+        env:
+          RENDER_UI_DEPLOY_HOOK: ${{ secrets.RENDER_UI_DEPLOY_HOOK }}
+        run: |
+          curl -X POST -f "$RENDER_UI_DEPLOY_HOOK"
+
+      - name: Deployment Initiated Confirmation
+        run: echo "✅ LedgerMind AI CI checks passed and Render cloud deployment hooks triggered."

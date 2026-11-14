@@ -1,0 +1,80 @@
+# ============================================================
+# LedgerMind AI — Render Cloud Deployment Blueprint (render.yaml)
+# ============================================================
+# Infrastructure-as-Code specification defining:
+#   1. ledgermind-api: FastAPI + ONNX Runtime backend
+#   2. ledgermind-ui: Streamlit operations cockpit
+#   3. ledgermind-postgres: Managed PostgreSQL 16 database
+#   4. ledgermind-redis: Managed Redis 7 velocity cache
+# ============================================================
+
+version: "1"
+
+services:
+  # ── 1. FastAPI REST & ONNX Inference Engine ───────────────
+  - type: web
+    name: ledgermind-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    region: oregon
+    healthCheckPath: /healthz
+    numInstances: 1
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ledgermind-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: ledgermind-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+
+  # ── 2. Streamlit Operations Dashboard ─────────────────────
+  - type: web
+    name: ledgermind-ui
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    plan: standard
+    region: oregon
+    healthCheckPath: /_stcore/health
+    numInstances: 1
+    envVars:
+      - key: PORT
+        value: 8501
+      - key: BACKEND_API_URL
+        fromService:
+          type: web
+          name: ledgermind-api
+          property: host
+          value: "https://ledgermind-api.onrender.com/api/v1"
+
+  # ── 3. Redis In-Memory Velocity Engine ────────────────────
+  - type: redis
+    name: ledgermind-redis
+    plan: starter
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  # ── 4. Authoritative PostgreSQL Database ──────────────────
+  - name: ledgermind-postgres
+    databaseName: ledgermind_db
+    user: ledgermind
+    plan: standard
+    region: oregon
+    postgresMajorVersion: 16
