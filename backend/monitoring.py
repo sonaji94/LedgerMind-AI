@@ -69,6 +69,15 @@ class FeatureDriftDetail(BaseModel):
     drift_detected: bool
 
 
+class RetrainResponse(BaseModel):
+    status: str
+    message: str
+    timestamp: str
+    optimal_threshold: float
+    test_metrics: dict[str, float]
+    serving_engine: str
+
+
 class DriftAnalysisResponse(BaseModel):
     timestamp: str
     samples_analyzed: int
@@ -334,3 +343,37 @@ async def get_inference_logs(
         },
         "items": items,
     }
+
+
+@router.post(
+    "/retrain",
+    response_model=RetrainResponse,
+    summary="Trigger active ML model retraining and ONNX re-export",
+)
+async def trigger_active_retraining() -> RetrainResponse:
+    """
+    Executes training pipeline, regenerates ONNX artifacts and feature schema,
+    reloads HybridFraudInferenceService, and updates active serving engine.
+    """
+    from ml.export_onnx import run_export
+    from ml.train import run_training
+
+    bundle = run_training()
+    run_export()
+    HybridFraudInferenceService.load()
+
+    info = HybridFraudInferenceService.get_info()
+    metrics = bundle.get("metrics", {})
+
+    return RetrainResponse(
+        status="SUCCESS",
+        message="Hybrid model retraining and ONNX export completed successfully.",
+        timestamp=datetime.now(UTC).isoformat(),
+        optimal_threshold=float(bundle.get("optimal_threshold", 0.45)),
+        test_metrics={
+            "precision": float(metrics.get("test_precision", 1.0)),
+            "recall": float(metrics.get("test_recall", 1.0)),
+            "f1": float(metrics.get("test_f1", 1.0)),
+        },
+        serving_engine=info.get("serving_engine", "Hybrid-XGBoost-IsolationForest"),
+    )

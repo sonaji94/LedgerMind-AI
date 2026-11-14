@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from uuid import uuid4
 
 import numpy as np
 import onnx
@@ -29,7 +28,7 @@ from backend.inference import (
     HybridFraudInferenceService,
     InferenceResult,
 )
-from backend.monitoring import compute_psi, log_inference_event
+from backend.monitoring import compute_psi
 
 
 @pytest.mark.ml

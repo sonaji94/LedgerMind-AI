@@ -126,6 +126,49 @@ class BackendAPIClient:
         except Exception:
             return []
 
+    def get_audit_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Query immutable compliance audit trail."""
+        try:
+            res = self._client.get(f"/compliance/audit-logs?limit={limit}")
+            return res.json() if res.status_code == 200 else []
+        except Exception:
+            return []
+
+    def get_drift_report(self, sample_window: int = 500) -> dict[str, Any]:
+        """Fetch live Population Stability Index (PSI) drift report from monitoring API."""
+        try:
+            res = self._client.get(f"/monitoring/drift?sample_window={sample_window}")
+            return res.json() if res.status_code == 200 else {}
+        except Exception as e:
+            return {"error": str(e), "overall_status": "OFFLINE", "max_psi": 0.0, "feature_drift": []}
+
+    def get_monitoring_logs(self, limit: int = 50, decision: str | None = None) -> dict[str, Any]:
+        """Fetch historical inference logs with TreeSHAP attributions and latencies."""
+        try:
+            url = f"/monitoring/logs?limit={limit}"
+            if decision:
+                url += f"&decision={decision}"
+            res = self._client.get(url)
+            return res.json() if res.status_code == 200 else {"total": 0, "items": [], "summary": {}}
+        except Exception as e:
+            return {"total": 0, "items": [], "summary": {}, "error": str(e)}
+
+    def trigger_retraining(self) -> dict[str, Any]:
+        """Trigger continuous retraining and ONNX model re-export on backend."""
+        try:
+            res = self._client.post("/ml/retrain")
+            return res.json() if res.status_code == 200 else {"status": "FAILED", "message": res.text}
+        except Exception as e:
+            return {"status": "ERROR", "message": str(e)}
+
+    def predict_fraud(self, features: dict[str, Any], explain: bool = True) -> dict[str, Any]:
+        """Directly score features via backend inference endpoint."""
+        try:
+            res = self._client.post("/fraud/predict", json={"transaction_id": "DIRECT-ANALYSIS", "features": features, "explain": explain})
+            return res.json() if res.status_code == 200 else {}
+        except Exception as e:
+            return {"error": str(e)}
+
 
 # Global singleton client
 api_client = BackendAPIClient()

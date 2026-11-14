@@ -39,6 +39,7 @@ from app.transactions.router import router as transfers_router
 from app.webhooks.router import router as webhooks_router
 from backend.inference import HybridFraudInferenceService
 from backend.monitoring import router as monitoring_router
+from backend.monitoring import trigger_active_retraining
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(compliance_router, prefix=API_PREFIX)
     app.include_router(ai_router, prefix=API_PREFIX)
     app.include_router(monitoring_router, prefix=API_PREFIX)
+    app.post(f"{API_PREFIX}/ml/retrain", tags=["MLOps & Drift Monitoring"])(trigger_active_retraining)
 
     # ── Kubernetes Liveness Probe ─────────────────────────────────
     @app.get("/healthz", tags=["System"], summary="Liveness check")

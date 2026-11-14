@@ -12,6 +12,7 @@ from typing import Any
 
 import joblib
 import numpy as np
+
 try:
     import pandas as pd
 except Exception:
