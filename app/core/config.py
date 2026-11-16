@@ -100,15 +100,18 @@ class Settings(BaseSettings):
                 f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
                 f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
             )
+        else:
+            # Handle standard cloud URLs (Render/Neon/Heroku) starting with postgres:// or postgresql://
+            if self.database_url.startswith("postgres://"):
+                self.database_url = self.database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif self.database_url.startswith("postgresql://") and "+asyncpg" not in self.database_url:
+                self.database_url = self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
         if not self.database_url_sync:
             if "sqlite" in self.database_url:
                 self.database_url_sync = self.database_url.replace("+aiosqlite", "")
             else:
-                self.database_url_sync = (
-                    f"postgresql://{self.postgres_user}:{self.postgres_password}"
-                    f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-                )
+                self.database_url_sync = self.database_url.replace("postgresql+asyncpg://", "postgresql://")
 
         # 2. Production Security Checks
         if self.app_env == "production":
