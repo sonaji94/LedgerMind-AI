@@ -97,35 +97,83 @@ def test_hybrid_inference_cleared_policy() -> None:
 
 
 @pytest.mark.ml
-def test_hybrid_inference_intercept_policy() -> None:
-    """Adversarial velocity attack must trigger STEP-UP 2FA or INTERCEPTED."""
+def test_deep_investigator_geo_device_amount_intercept() -> None:
+    """
+    Verify that Deep Investigator human-readable risk sliders
+    (Geo-Velocity = 950 km/h, Unrecognized Device = True, Amount = 26.7x baseline)
+    produce a high fraud probability (> 0.80 INTERCEPTED) with matching TreeSHAP drivers.
+    """
     HybridFraudInferenceService.load()
 
-    attack_txn = {
-        "amount_minor": 95000_00,  # ₹95,000
-        "velocity_instrument_60s": 9,
-        "velocity_instrument_1h": 25,
-        "distinct_cards_ip_10m": 8,
-        "distinct_cards_email_10m": 4,
-        "amount_z_score": 6.2,
-        "amount_ratio_30d": 8.5,
-        "account_age_days": 1.5,
-        "hours_since_bank_change": 2.0,
-        "payout_to_balance_ratio": 0.95,
-        "is_disposable_email": 1,
-        "is_international_card": 1,
-        "hour_of_day": 3,
-        "day_of_week": 6,
+    amt = 3204.0
+    dev_ratio = 26.7
+    geo_speed = 950.0
+    vel_1m = 3
+    is_new_device = True
+    in_hour = 14
+
+    features = {
+        "amount_minor": int(round(amt * 100.0)),
+        "velocity_instrument_60s": int(vel_1m),
+        "velocity_instrument_1h": int(vel_1m * 3 + (geo_speed > 500) * 2),
+        "distinct_cards_ip_10m": int(round(geo_speed / 150.0)) if (is_new_device or geo_speed > 300) else 0,
+        "distinct_cards_email_10m": 3 if is_new_device else (1 if geo_speed > 700 else 0),
+        "amount_z_score": float(round((amt - 120.0) / 45.0, 2)),
+        "amount_ratio_30d": float(round(dev_ratio, 2)),
+        "account_age_days": 15.0 if is_new_device else 180.0,
+        "hours_since_bank_change": 4.0 if is_new_device else 720.0,
+        "payout_to_balance_ratio": 0.92 if dev_ratio > 10.0 else 0.15,
+        "is_disposable_email": 1 if is_new_device else 0,
+        "is_international_card": 1 if geo_speed > 500 else 0,
+        "hour_of_day": int(in_hour),
+        "day_of_week": 2,
     }
 
-    res: InferenceResult = HybridFraudInferenceService.score_transaction(attack_txn, explain=True)
-    assert res.risk_score >= 0.45
-    assert res.decision in ("STEP_UP_2FA", "INTERCEPTED")
-    assert res.is_suspicious
-    assert len(res.top_drivers) >= 1
-    # Check that top driver has human-readable label
-    assert "label" in res.top_drivers[0]
-    assert "impact" in res.top_drivers[0]
+    res: InferenceResult = HybridFraudInferenceService.score_transaction(features, explain=True)
+    assert res.risk_score > 0.80, f"Expected risk_score > 0.80, got {res.risk_score}"
+    assert res.decision == "INTERCEPTED"
+    assert res.is_suspicious is True
+    assert len(res.top_drivers) >= 2
+
+    driver_labels = " ".join([d["label"] for d in res.top_drivers])
+    assert any(term in driver_labels for term in ("Device", "Geo-Velocity", "Card", "Amount"))
+
+
+@pytest.mark.asyncio
+async def test_inference_score_endpoint(client) -> None:
+    """Verify POST /api/v1/inference/score correctly scores 14 features and returns TreeSHAP drivers."""
+    amt = 3204.0
+    dev_ratio = 26.7
+    geo_speed = 950.0
+    vel_1m = 3
+    is_new_device = True
+    in_hour = 14
+
+    features = {
+        "amount_minor": int(round(amt * 100.0)),
+        "velocity_instrument_60s": int(vel_1m),
+        "velocity_instrument_1h": int(vel_1m * 3 + (geo_speed > 500) * 2),
+        "distinct_cards_ip_10m": int(round(geo_speed / 150.0)) if (is_new_device or geo_speed > 300) else 0,
+        "distinct_cards_email_10m": 3 if is_new_device else (1 if geo_speed > 700 else 0),
+        "amount_z_score": float(round((amt - 120.0) / 45.0, 2)),
+        "amount_ratio_30d": float(round(dev_ratio, 2)),
+        "account_age_days": 15.0 if is_new_device else 180.0,
+        "hours_since_bank_change": 4.0 if is_new_device else 720.0,
+        "payout_to_balance_ratio": 0.92 if dev_ratio > 10.0 else 0.15,
+        "is_disposable_email": 1 if is_new_device else 0,
+        "is_international_card": 1 if geo_speed > 500 else 0,
+        "hour_of_day": int(in_hour),
+        "day_of_week": 2,
+    }
+
+    resp = await client.post("/api/v1/inference/score", json={"features": features, "explain": True})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["risk_score"] > 0.80
+    assert data["decision"] == "INTERCEPTED"
+    assert data["is_suspicious"] is True
+    assert len(data["top_drivers"]) >= 2
+
 
 
 @pytest.mark.ml

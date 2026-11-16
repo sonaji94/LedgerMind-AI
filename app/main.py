@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -135,6 +136,24 @@ def create_app() -> FastAPI:
     app.include_router(monitoring_router, prefix=API_PREFIX)
     app.post(f"{API_PREFIX}/ml/retrain", tags=["MLOps & Drift Monitoring"])(trigger_active_retraining)
 
+    # ── Real-Time Inference Scoring Endpoint ──────────────────────
+    @app.post(f"{API_PREFIX}/inference/score", tags=["Inference"])
+    async def score_inference_endpoint(payload: dict[str, Any]) -> dict[str, Any]:
+        """Score real transaction features and return hybrid probability, decision policy, and TreeSHAP drivers."""
+        features = payload.get("features", payload)
+        explain = bool(payload.get("explain", True))
+        res = HybridFraudInferenceService.score_transaction(features, explain=explain)
+        return {
+            "risk_score": res.risk_score,
+            "xgb_score": res.xgb_score,
+            "anomaly_score": res.anomaly_score,
+            "decision": res.decision,
+            "is_suspicious": res.is_suspicious,
+            "latency_ms": res.latency_ms,
+            "top_drivers": res.top_drivers,
+            "features": res.features,
+        }
+
     # ── Kubernetes Liveness Probe ─────────────────────────────────
     @app.get("/healthz", tags=["System"], summary="Liveness check")
     async def liveness_probe() -> dict[str, str]:
@@ -174,9 +193,10 @@ def create_app() -> FastAPI:
                 },
             )
 
+        storage_engine = "SQLite 3 (Local Dev)" if settings.database_url.startswith("sqlite") else "PostgreSQL"
         return {
             "status": "ready",
-            "database": {"connected": True},
+            "database": {"connected": True, "engine": storage_engine},
             "ml_model": HybridFraudInferenceService.get_info(),
             "redis": {"connected": redis_ok},
         }

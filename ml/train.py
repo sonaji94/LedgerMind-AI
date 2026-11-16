@@ -198,7 +198,7 @@ def generate_training_dataset(n_samples: int = 12_000) -> tuple[np.ndarray, np.n
     legit_payout_ratio = rng.uniform(0.01, 0.35, size=n_legit)
     legit_disp = rng.choice([0, 1], size=n_legit, p=[0.995, 0.005])
     legit_intl = rng.choice([0, 1], size=n_legit, p=[0.96, 0.04])
-    legit_hour = rng.integers(7, 23, size=n_legit)
+    legit_hour = rng.integers(0, 24, size=n_legit)
     legit_dow = rng.integers(0, 7, size=n_legit)
 
     X_legit = np.column_stack([
@@ -223,7 +223,7 @@ def generate_training_dataset(n_samples: int = 12_000) -> tuple[np.ndarray, np.n
     smurf_payout_ratio = rng.uniform(0.0, 0.1, size=n_smurf)
     smurf_disp = rng.choice([0, 1], size=n_smurf, p=[0.25, 0.75])
     smurf_intl = rng.choice([0, 1], size=n_smurf, p=[0.45, 0.55])
-    smurf_hour = rng.integers(0, 6, size=n_smurf)
+    smurf_hour = rng.integers(0, 24, size=n_smurf)
     smurf_dow = rng.integers(0, 7, size=n_smurf)
 
     X_smurf = np.column_stack([
@@ -246,7 +246,7 @@ def generate_training_dataset(n_samples: int = 12_000) -> tuple[np.ndarray, np.n
     ato_payout_ratio = rng.uniform(0.85, 0.99, size=n_ato)
     ato_disp = rng.choice([0, 1], size=n_ato, p=[0.40, 0.60])
     ato_intl = rng.choice([0, 1], size=n_ato, p=[0.70, 0.30])
-    ato_hour = rng.integers(0, 5, size=n_ato)
+    ato_hour = rng.integers(0, 24, size=n_ato)
     ato_dow = rng.integers(0, 7, size=n_ato)
 
     X_ato = np.column_stack([
@@ -269,7 +269,7 @@ def generate_training_dataset(n_samples: int = 12_000) -> tuple[np.ndarray, np.n
     novel_payout_ratio = rng.uniform(0.70, 0.98, size=n_novel)
     novel_disp = rng.choice([0, 1], size=n_novel, p=[0.10, 0.90])
     novel_intl = rng.choice([0, 1], size=n_novel, p=[0.20, 0.80])
-    novel_hour = rng.integers(1, 5, size=n_novel)
+    novel_hour = rng.integers(0, 24, size=n_novel)
     novel_dow = rng.integers(0, 7, size=n_novel)
 
     X_novel = np.column_stack([

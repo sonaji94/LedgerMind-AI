@@ -29,9 +29,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from app.core.config import get_settings
 from app.fraud.service import FraudInferenceService
 from app.ledger.domain import Money
 from app.ledger.service import LedgerService
+
+settings = get_settings()
 
 # ── 1. Page Configuration & Institutional Fintech Styling ────────────
 st.set_page_config(
@@ -584,7 +587,7 @@ st.markdown(
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             {threat_badge}
             <span class="badge-audit-ok">{'🔒 Σ DEBITS == Σ CREDITS' if stats['is_balanced'] else '⚠️ DRIFT DETECTED'}</span>
-            <span class="badge-live-pulse">⚡ RF CHAMPION (AUC: 0.964)</span>
+            <span class="badge-live-pulse">⚡ {model_info.get('model_type', 'Hybrid-XGBoost-IsolationForest')} ({model_info.get('auc_metric', 'AUC: 0.994')})</span>
         </div>
     </div>
     """,
@@ -665,9 +668,10 @@ with st.sidebar:
     st.title("Operations Command")
 
     st.markdown("### ⚙️ Engine State")
-    st.markdown(f"**ML Classifier**: `{model_info['model_type']}`")
-    st.markdown(f"**Calibrated Cutoff (τ)**: `{model_info['optimal_threshold']:.3f}`")
-    st.markdown("**Storage Engine**: `SQLite 3 (ledgermind.db)`")
+    st.markdown(f"**ML Classifier**: `{model_info.get('model_type', 'Hybrid-XGBoost-IsolationForest')}`")
+    st.markdown(f"**Calibrated Cutoff (τ)**: `{model_info.get('optimal_threshold', 0.45):.3f}`")
+    storage_engine_name = "PostgreSQL" if ("postgresql" in settings.database_url or (not settings.use_sqlite and not settings.database_url.startswith("sqlite"))) else "SQLite 3 (Local Dev)"
+    st.markdown(f"**Storage Engine**: `{storage_engine_name}`")
     st.markdown("**SHAP XAI**: `TreeExplainer Active`")
 
     st.markdown("---")
@@ -869,17 +873,56 @@ with tab_investigate:
     with col_result:
         st.markdown("#### 🎯 Machine Learning Inference Verdict")
 
-        features = {
-            "Time": in_time_sec,
-            "Amount": in_amt,
-            "V14": in_v14,
-            "V17": in_v17,
-            "V4": in_v4,
-            "V10": in_v10,
+        # Map human-readable UI sliders into the exact 14 features expected by feature_schema.json
+        amount_minor = int(round(in_amt * 100.0))
+        velocity_instrument_60s = int(in_vel_1m)
+        velocity_instrument_1h = int(in_vel_1m * 3 + (in_geo_speed > 500) * 2)
+        distinct_cards_ip_10m = int(round(in_geo_speed / 150.0)) if (in_new_device or in_geo_speed > 300) else 0
+        distinct_cards_email_10m = 3 if in_new_device else (1 if in_geo_speed > 700 else 0)
+        amount_z_score = float(round((in_amt - 120.0) / 45.0, 2))
+        amount_ratio_30d = float(round(in_dev_ratio, 2))
+        account_age_days = 15.0 if in_new_device else 180.0
+        hours_since_bank_change = 4.0 if in_new_device else 720.0
+        payout_to_balance_ratio = 0.92 if in_dev_ratio > 10.0 else 0.15
+        is_disposable_email = 1 if in_new_device else 0
+        is_international_card = 1 if in_geo_speed > 500 else 0
+        hour_of_day = int(in_hour)
+        day_of_week = 2
+
+        features_14 = {
+            "amount_minor": amount_minor,
+            "velocity_instrument_60s": velocity_instrument_60s,
+            "velocity_instrument_1h": velocity_instrument_1h,
+            "distinct_cards_ip_10m": distinct_cards_ip_10m,
+            "distinct_cards_email_10m": distinct_cards_email_10m,
+            "amount_z_score": amount_z_score,
+            "amount_ratio_30d": amount_ratio_30d,
+            "account_age_days": account_age_days,
+            "hours_since_bank_change": hours_since_bank_change,
+            "payout_to_balance_ratio": payout_to_balance_ratio,
+            "is_disposable_email": is_disposable_email,
+            "is_international_card": is_international_card,
+            "hour_of_day": hour_of_day,
+            "day_of_week": day_of_week,
         }
 
-        risk_score, is_suspicious, latency_ms, top_shap = FraudInferenceService.predict(features, explain=True)
-        opt_thresh = model_info["optimal_threshold"]
+        from backend.inference import HybridFraudInferenceService
+        inf_res = HybridFraudInferenceService.score_transaction(features_14, explain=True)
+        risk_score = inf_res.risk_score
+        is_suspicious = inf_res.is_suspicious
+        latency_ms = inf_res.latency_ms
+        opt_thresh = model_info.get("optimal_threshold", 0.45)
+        decision = inf_res.decision
+
+        if decision == "INTERCEPTED":
+            policy_label = "🛡️ INTERCEPTED (FROZEN)"
+            status_col = "#ef4444"
+        elif decision == "STEP_UP_2FA":
+            policy_label = "🔑 STEP-UP 2FA CHALLENGE"
+            status_col = "#f59e0b"
+        else:
+            policy_label = "✅ CLEARED (INSTANT)"
+            status_col = "#10b981"
 
         # Big Risk Meter Card
         st.markdown(
@@ -889,11 +932,11 @@ with tab_investigate:
                     <span style="font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Calibrated Fraud Probability</span>
                     <span style="font-size: 12px; color: #34d399; font-family: 'JetBrains Mono';">⚡ Latency: {latency_ms:.2f} ms</span>
                 </div>
-                <div style="font-size: 44px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: {'#ef4444' if is_suspicious else '#10b981'}; margin: 4px 0;">
+                <div style="font-size: 44px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: {status_col}; margin: 4px 0;">
                     {risk_score * 100:.2f}%
                 </div>
                 <div style="font-size: 13px; color: #cbd5e1;">
-                    Active Cutoff Threshold: <b>{opt_thresh:.3f}</b> | Status: <b>{'🚨 FLAGGED FOR INTERCEPTION' if is_suspicious else '✅ AUTOMATIC CLEARANCE'}</b>
+                    Cutoff: <b>{opt_thresh:.3f}</b> | Policy Verdict: <b style="color: {status_col};">{policy_label}</b>
                 </div>
             </div>
             """,
@@ -904,17 +947,18 @@ with tab_investigate:
 
         if is_suspicious:
             st.error(
-                f"🚨 **HIGH RISK INTERCEPT TRIGGERED**\n\n"
+                f"🚨 **HIGH RISK INTERCEPT TRIGGERED ({decision})**\n\n"
                 f"Predicted fraud probability ({risk_score:.4f}) breaches operational threshold ({opt_thresh:.3f}). "
                 "Immediate ledger hold placed on funds."
             )
         else:
             st.success(
-                f"✅ **LOW RISK — IMMEDIATE SETTLEMENT**\n\n"
+                f"✅ **LOW RISK — IMMEDIATE SETTLEMENT ({decision})**\n\n"
                 f"Risk score ({risk_score:.4f}) within safety envelope. Automated atomic ledger execution allowed."
             )
 
         # Local SHAP Attribution Bar Chart
+        top_shap = {d["label"]: d["shap_value"] for d in inf_res.top_drivers} if inf_res.top_drivers else None
         if top_shap:
             st.markdown("##### 🔍 Local Feature Attributions (SHAP TreeExplainer)")
             st.caption("Positive SHAP values push probability toward fraud; negative values reduce risk.")

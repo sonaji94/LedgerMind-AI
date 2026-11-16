@@ -161,6 +161,29 @@ class BackendAPIClient:
         except Exception as e:
             return {"status": "ERROR", "message": str(e)}
 
+    def score_features(self, features: dict[str, Any], explain: bool = True) -> dict[str, Any]:
+        """Submit 14 transaction features to POST /api/v1/inference/score with local fallback."""
+        try:
+            res = self._client.post("/inference/score", json={"features": features, "explain": explain})
+            if res.status_code == 200:
+                return res.json()
+        except Exception:
+            pass
+
+        # Local fallback execution
+        from backend.inference import HybridFraudInferenceService
+        inf = HybridFraudInferenceService.score_transaction(features, explain=explain)
+        return {
+            "risk_score": inf.risk_score,
+            "xgb_score": inf.xgb_score,
+            "anomaly_score": inf.anomaly_score,
+            "decision": inf.decision,
+            "is_suspicious": inf.is_suspicious,
+            "latency_ms": inf.latency_ms,
+            "top_drivers": inf.top_drivers,
+            "features": inf.features,
+        }
+
     def predict_fraud(self, features: dict[str, Any], explain: bool = True) -> dict[str, Any]:
         """Directly score features via backend inference endpoint."""
         try:

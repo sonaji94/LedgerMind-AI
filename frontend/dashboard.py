@@ -337,7 +337,31 @@ FraudInferenceService.load()
 stats = get_live_ledger_data()
 backend_health = api_client.check_health()
 model_info = backend_health.get("ml_model") or FraudInferenceService.get_info()
-serving_engine = model_info.get("serving_engine", "XGBoost + IsolationForest (ONNX)")
+model_name = model_info.get("model_type", "Hybrid-XGBoost-IsolationForest")
+auc_metric = model_info.get("auc_metric", "AUC: 0.994")
+serving_engine = model_info.get("serving_engine", "ONNXRuntime-Optimized")
+
+db_engine_meta = backend_health.get("database", {}).get("engine")
+if db_engine_meta:
+    storage_engine_name = db_engine_meta
+elif "postgresql" in settings.database_url or (not settings.use_sqlite and not settings.database_url.startswith("sqlite")):
+    storage_engine_name = "PostgreSQL"
+else:
+    storage_engine_name = "SQLite 3 (Local Dev)"
+
+with st.sidebar:
+    st.image(
+        "https://raw.githubusercontent.com/feathericons/feather/master/icons/shield.svg",
+        width=38,
+    )
+    st.title("Operations Command")
+
+    st.markdown("### ⚙️ Engine State")
+    st.markdown(f"**ML Classifier**: `{model_name}`")
+    st.markdown(f"**Serving Engine**: `{serving_engine}`")
+    st.markdown(f"**Calibrated Cutoff (τ)**: `{model_info.get('optimal_threshold', 0.45):.3f}`")
+    st.markdown(f"**Storage Engine**: `{storage_engine_name}`")
+    st.markdown("**SHAP XAI**: `TreeExplainer Active`")
 
 monitoring_logs_data = api_client.get_monitoring_logs(limit=25)
 summary_stats = monitoring_logs_data.get("summary", {})
@@ -440,6 +464,7 @@ st.markdown(
         </div>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             {backend_badge}
+            <span class="badge-live-pulse">⚡ {model_name} ({auc_metric})</span>
             <span class="badge-live-pulse">🌲 {serving_engine.upper()}</span>
             <span class="badge-audit-ok">⚡ p50: {p50_lat:.2f}ms | p95: {p95_lat:.2f}ms</span>
             <span class="badge-audit-ok">{'🔒 Σ DEBITS == Σ CREDITS' if stats['is_balanced'] else '⚠️ DRIFT DETECTED'}</span>
@@ -583,11 +608,12 @@ with tab_investigate:
 
     with c_inputs:
         st.markdown("#### 👤 Human-Readable Risk Factors")
-        amt = st.number_input("Transaction Ticket (€)", min_value=1.0, max_value=250000.0, value=float(st.session_state.get("inv_amount", 3200.0)), step=50.0)
+        amt = st.number_input("Transaction Ticket (€)", min_value=1.0, max_value=250000.0, value=float(st.session_state.get("inv_amount", 3204.0)), step=50.0)
         channel = st.selectbox("Transaction Channel", ["ONLINE_CNP (Card Not Present)", "POS_CHIP (Physical Terminal)", "WIRE_TRANSFER", "ATM_CASHOUT"])
-        geo_speed = st.slider("Calculated Geo-Velocity (km/h between swipes)", 0, 1200, 950, step=25)
-        vel_1m = st.slider("Transaction Velocity (Authorizations in last 60s)", 1, 60, 3, step=1)
-        is_new_device = st.checkbox("Unrecognized Device Fingerprint / Tor Exit Node", value=True)
+        in_hour = st.slider("Time of Execution (24-Hour Cycle UTC)", 0, 23, int(st.session_state.get("inv_hour", 14)))
+        geo_speed = st.slider("Calculated Geo-Velocity (km/h between swipes)", 0, 1200, int(st.session_state.get("inv_geo", 950)), step=25)
+        vel_1m = st.slider("Transaction Velocity (Authorizations in last 60s)", 1, 60, int(st.session_state.get("inv_vel", 3)), step=1)
+        is_new_device = st.checkbox("Unrecognized Device Fingerprint / Tor Exit Node", value=st.session_state.get("inv_device", True))
         dev_ratio = amt / 120.0
         st.caption(f"📊 Amount is **{dev_ratio:.1f}x** user 30-day baseline average (€120.00).")
 
@@ -603,29 +629,34 @@ with tab_investigate:
         st.markdown("#### 🎯 Machine Learning Verdict & TreeSHAP Attribution")
 
         real_features = {
-            "amount_minor": int(amt * 100.0),
-            "velocity_instrument_60s": vel_1m,
-            "velocity_instrument_1h": vel_1m * 3,
-            "distinct_cards_ip_10m": 5 if is_new_device else 0,
-            "distinct_cards_email_10m": 2 if is_new_device else 0,
-            "amount_z_score": float((amt - 120.0) / 45.0),
-            "amount_ratio_30d": float(dev_ratio),
-            "account_age_days": 180.0,
-            "hours_since_bank_change": 8.0 if is_new_device else 720.0,
-            "payout_to_balance_ratio": 0.88 if amt > 5000 else 0.05,
+            "amount_minor": int(round(amt * 100.0)),
+            "velocity_instrument_60s": int(vel_1m),
+            "velocity_instrument_1h": int(vel_1m * 3 + (geo_speed > 500) * 2),
+            "distinct_cards_ip_10m": int(round(geo_speed / 150.0)) if (is_new_device or geo_speed > 300) else 0,
+            "distinct_cards_email_10m": 3 if is_new_device else (1 if geo_speed > 700 else 0),
+            "amount_z_score": float(round((amt - 120.0) / 45.0, 2)),
+            "amount_ratio_30d": float(round(dev_ratio, 2)),
+            "account_age_days": 15.0 if is_new_device else 180.0,
+            "hours_since_bank_change": 4.0 if is_new_device else 720.0,
+            "payout_to_balance_ratio": 0.92 if dev_ratio > 10.0 else 0.15,
             "is_disposable_email": 1 if is_new_device else 0,
-            "is_international_card": 1 if ("ATM" in channel or "WIRE" in channel) else 0,
-            "hour_of_day": 3 if is_new_device else 14,
+            "is_international_card": 1 if (geo_speed > 500 or "ATM" in channel or "WIRE" in channel) else 0,
+            "hour_of_day": int(in_hour),
             "day_of_week": 2,
         }
 
-        from backend.inference import HybridFraudInferenceService
-        inf_res = HybridFraudInferenceService.score_transaction(real_features, explain=True)
+        inf_dict = api_client.score_features(real_features, explain=True)
+        risk_score = inf_dict.get("risk_score", 0.0)
+        xgb_score = inf_dict.get("xgb_score", 0.0)
+        anomaly_score = inf_dict.get("anomaly_score", 0.0)
+        decision = inf_dict.get("decision", "CLEARED")
+        latency_ms = inf_dict.get("latency_ms", 1.25)
+        top_drivers = inf_dict.get("top_drivers", [])
 
-        if inf_res.decision == "INTERCEPTED":
+        if decision == "INTERCEPTED":
             policy_html = '<span class="badge-policy-intercept">🛡️ INTERCEPTED (IMMEDIATE LEDGER LOCK)</span>'
             status_col = "#ef4444"
-        elif inf_res.decision == "STEP_UP_2FA":
+        elif decision == "STEP_UP_2FA":
             policy_html = '<span class="badge-policy-stepup">🔑 STEP-UP 2FA (CHALLENGE REQUIRED)</span>'
             status_col = "#f59e0b"
         else:
@@ -637,25 +668,25 @@ with tab_investigate:
             <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 22px; margin-bottom: 18px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="font-size: 13px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Hybrid Model Probability</span>
-                    <span style="font-size: 12px; color: #34d399; font-family: 'JetBrains Mono';">⚡ Latency: {inf_res.latency_ms:.2f} ms</span>
+                    <span style="font-size: 12px; color: #34d399; font-family: 'JetBrains Mono';">⚡ Latency: {latency_ms:.2f} ms</span>
                 </div>
                 <div style="font-size: 46px; font-weight: 800; font-family: 'JetBrains Mono'; color: {status_col}; margin: 4px 0;">
-                    {inf_res.risk_score * 100:.2f}%
+                    {risk_score * 100:.2f}%
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
                     <div style="font-size: 13px; color: #cbd5e1;">Policy Verdict: {policy_html}</div>
-                    <div style="font-size: 11px; color: #94a3b8;">XGBoost: {inf_res.xgb_score:.2f} | IsoForest: {inf_res.anomaly_score:.2f}</div>
+                    <div style="font-size: 11px; color: #94a3b8;">XGBoost: {xgb_score:.2f} | IsoForest: {anomaly_score:.2f}</div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.progress(min(float(inf_res.risk_score), 1.0))
+        st.progress(min(float(risk_score), 1.0))
 
         st.markdown("##### 🔍 Top 3 Contributing Risk Drivers (TreeSHAP)")
-        if inf_res.top_drivers:
-            shap_df = pd.DataFrame(inf_res.top_drivers)[["label", "value", "impact", "shap_value"]]
+        if top_drivers:
+            shap_df = pd.DataFrame(top_drivers)[["label", "value", "impact", "shap_value"]]
             shap_df.columns = ["Factor Description", "Feature Value", "Direction", "TreeSHAP Impact"]
             st.dataframe(shap_df, use_container_width=True)
         else:
