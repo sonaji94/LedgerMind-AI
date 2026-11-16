@@ -319,8 +319,8 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Timestamp": str(r[2])[:19] if r[2] else "N/A",
                 "Debit Account (Beneficiary)": str(r[3]),
                 "Credit Account (Source)": str(r[4]),
-                "Amount (€)": float(r[5] or 0) / 100.0,
-                "Minor Units": r[5] or 0,
+                "Amount (₹)": float(r[5] or 0) / 100.0,
+                "Minor Units (Paise)": r[5] or 0,
                 "Status": "POSTED_SETTLED",
             }
             for r in recent_rows
@@ -341,8 +341,8 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Account ID": str(p[0]),
                 "Currency": p[1],
                 "Status": p[2],
-                "Balance (€)": float(p[3] or 0) / 100.0,
-                "Minor Units": p[3] or 0,
+                "Balance (₹)": float(p[3] or 0) / 100.0,
+                "Minor Units (Paise)": p[3] or 0,
                 "Version": p[4],
                 "Owner ID": str(p[5]),
             }
@@ -370,7 +370,7 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Block #": idx + 1,
                 "Transaction ID": str(t_id)[:12] + "...",
                 "Posted UTC": str(t_time)[:19] if t_time else "N/A",
-                "Volume (€)": float(t_minor or 0) / 200.0,
+                "Volume (₹)": float(t_minor or 0) / 200.0,
                 "Prev Hash": prev_hash[:16] + "...",
                 "Block Hash (SHA-256)": block_hash[:20] + "...",
                 "Tamper Verified": True,
@@ -435,7 +435,7 @@ def execute_live_transfer(
                 txn = await service.execute_transfer(
                     source_account_id=UUID(source_id),
                     destination_account_id=UUID(dest_id),
-                    amount=Money(minor, currency="EUR"),
+                    amount=Money(minor, currency="INR"),
                     idempotency_key=f"ui-transfer-{uuid4()}",
                     description=description,
                 )
@@ -602,7 +602,7 @@ with kpi1:
         f"""
         <div class="kpi-card">
             <div class="kpi-label">Monitored Volume</div>
-            <div class="kpi-value">€{stats['settled_volume']:,.2f}</div>
+            <div class="kpi-value">₹{stats['settled_volume']:,.2f}</div>
             <div class="kpi-sub"><span>100% Immutable SQL</span></div>
         </div>
         """,
@@ -650,7 +650,7 @@ with kpi5:
         """
         <div class="kpi-card">
             <div class="kpi-label">Accounting Drift</div>
-            <div class="kpi-value" style="color: #10b981;">€0.00</div>
+            <div class="kpi-value" style="color: #10b981;">₹0.00</div>
             <div class="kpi-sub"><span>0 Floating-Point Error</span></div>
         </div>
         """,
@@ -692,14 +692,14 @@ with st.sidebar:
                     for _name in ["Treasury Liquidity Hub", "Cross-Border Settlement", "Retail Clearing"]:
                         await service.create_account(
                             owner_id=uuid4(),
-                            currency="EUR",
+                            currency="INR",
                             initial_deposit_minor_units=2500000,
                         )
                     await session.commit()
                 await engine.dispose()
 
             asyncio.run(_seed())
-            st.toast("Provisioned 3 institutional accounts with €25,000 capital each!")
+            st.toast("Provisioned 3 institutional accounts with ₹25,000 capital each!")
             st.rerun()
 
     if st.button("🔄 Reload Ledger & Triage State", use_container_width=True):
@@ -775,7 +775,7 @@ with tab_incidents:
                             <b style="font-size: 16px; margin-left: 10px; color: #f8fafc;">{inc['id']}: {inc['title']}</b>
                         </div>
                         <div style="font-size: 18px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: {'#ef4444' if inc['probability'] > 0.5 else '#10b981'};">
-                            €{inc['amount']:,.2f} | Risk: {inc['probability'] * 100:.1f}%
+                            ₹{inc['amount']:,.2f} | Risk: {inc['probability'] * 100:.1f}%
                         </div>
                     </div>
                     <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">
@@ -846,9 +846,9 @@ with tab_investigate:
     with col_sliders:
         st.markdown("#### 🎛️ Transaction Vector Parameters")
         in_amt = st.number_input(
-            "Transaction Ticket Amount (€)",
+            "Transaction Ticket Amount (₹)",
             min_value=0.01,
-            max_value=250000.0,
+            max_value=25000000.0,
             value=float(inv_amt),
             step=25.0,
         )
@@ -860,7 +860,7 @@ with tab_investigate:
         in_vel_1m = st.slider("Authorization Velocity (Transactions in last 60s)", 1, 60, 3, step=1)
         in_new_device = st.checkbox("Unrecognized Device Fingerprint / Tor Exit Node", value=True)
         in_dev_ratio = in_amt / 120.0
-        st.caption(f"📊 Amount is **{in_dev_ratio:.1f}x** user 30-day baseline average (€120.00).")
+        st.caption(f"📊 Amount is **{in_dev_ratio:.1f}x** user 30-day baseline average (₹120.00).")
 
         # ── Collapsible Advanced Model Diagnostics Drawer ──────────
         with st.expander("🛠️ Advanced Model Diagnostics (Raw PCA Vectors V1 - V28)", expanded=False):
@@ -1005,17 +1005,17 @@ with tab_aml:
     aml_c1.metric("Identified Mule Clusters", "3 Active Rings", "14 Monitored Nodes")
     aml_c2.metric("Structuring Fan-Out Ratio", "1 : 6 Accounts", "High Layering Velocity")
     aml_c3.metric("Time-To-Drain (Velocity)", "4.2 Minutes", "Instant Pass-Through")
-    aml_c4.metric("Prevented Laundering", "€142,500.00", "Funds Intercepted")
+    aml_c4.metric("Prevented Laundering", "₹14,25,000.00", "Funds Intercepted")
 
     st.markdown("#### 🗺️ Interactive Mule Ring Architecture & Funds Path")
 
     # Flow Graph nodes and edges
     flow_nodes = pd.DataFrame([
-        {"Node": "1. Syndicate Master", "Stage": "1. Inflow", "Role": "Illicit Infiltration Hub", "Capital (€)": 95000, "Risk": "CRITICAL", "X": 10, "Y": 50},
-        {"Node": "2. Layering Mule A", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 1)", "Capital (€)": 28000, "Risk": "HIGH", "X": 45, "Y": 80},
-        {"Node": "3. Layering Mule B", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 2)", "Capital (€)": 34000, "Risk": "HIGH", "X": 45, "Y": 50},
-        {"Node": "4. Layering Mule C", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 3)", "Capital (€)": 33000, "Risk": "HIGH", "X": 45, "Y": 20},
-        {"Node": "5. Crypto Gateway", "Stage": "3. Cashout", "Role": "Offshore Liquidator", "Capital (€)": 95000, "Risk": "CRITICAL", "X": 85, "Y": 50},
+        {"Node": "1. Syndicate Master", "Stage": "1. Inflow", "Role": "Illicit Infiltration Hub", "Capital (₹)": 950000, "Risk": "CRITICAL", "X": 10, "Y": 50},
+        {"Node": "2. Layering Mule A", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 1)", "Capital (₹)": 280000, "Risk": "HIGH", "X": 45, "Y": 80},
+        {"Node": "3. Layering Mule B", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 2)", "Capital (₹)": 340000, "Risk": "HIGH", "X": 45, "Y": 50},
+        {"Node": "4. Layering Mule C", "Stage": "2. Layering", "Role": "Smurfing Mule (Drop 3)", "Capital (₹)": 330000, "Risk": "HIGH", "X": 45, "Y": 20},
+        {"Node": "5. Crypto Gateway", "Stage": "3. Cashout", "Role": "Offshore Liquidator", "Capital (₹)": 950000, "Risk": "CRITICAL", "X": 85, "Y": 50},
     ])
 
     flow_chart = (
@@ -1028,7 +1028,7 @@ with tab_aml:
                 "Risk:N",
                 scale=alt.Scale(domain=["CRITICAL", "HIGH"], range=["#ef4444", "#f97316"]),
             ),
-            tooltip=["Node", "Stage", "Role", "Capital (€)", "Risk"],
+            tooltip=["Node", "Stage", "Role", "Capital (₹)", "Risk"],
         )
         .properties(height=340)
     )
@@ -1047,11 +1047,11 @@ with tab_aml:
 
     st.markdown("#### 📋 Flagged AML Network Transactions (Structuring Audit)")
     mule_txns = pd.DataFrame([
-        {"Hop": "1 &rarr; 2", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-alpha-02", "Amount (€)": 9850.00, "Structuring Signal": "Just under €10k threshold", "Action": "FROZEN"},
-        {"Hop": "1 &rarr; 3", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-bravo-03", "Amount (€)": 9920.00, "Structuring Signal": "Just under €10k threshold", "Action": "FROZEN"},
-        {"Hop": "1 &rarr; 4", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-charlie-04", "Amount (€)": 9890.00, "Structuring Signal": "Just under €10k threshold", "Action": "FROZEN"},
-        {"Hop": "2 &rarr; 5", "Origin Account": "acc-mule-alpha-02", "Target Account": "acc-crypto-offshore-99", "Amount (€)": 9800.00, "Structuring Signal": "Instant 120s pass-through drain", "Action": "INTERCEPTED"},
-        {"Hop": "3 &rarr; 5", "Origin Account": "acc-mule-bravo-03", "Target Account": "acc-crypto-offshore-99", "Amount (€)": 9900.00, "Structuring Signal": "Instant 180s pass-through drain", "Action": "INTERCEPTED"},
+        {"Hop": "1 &rarr; 2", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-alpha-02", "Amount (₹)": 985000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "1 &rarr; 3", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-bravo-03", "Amount (₹)": 992000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "1 &rarr; 4", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-charlie-04", "Amount (₹)": 989000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "2 &rarr; 5", "Origin Account": "acc-mule-alpha-02", "Target Account": "acc-crypto-offshore-99", "Amount (₹)": 980000.00, "Structuring Signal": "Instant 120s pass-through drain", "Action": "INTERCEPTED"},
+        {"Hop": "3 &rarr; 5", "Origin Account": "acc-mule-bravo-03", "Target Account": "acc-crypto-offshore-99", "Amount (₹)": 990000.00, "Structuring Signal": "Instant 180s pass-through drain", "Action": "INTERCEPTED"},
     ])
     st.dataframe(mule_txns, use_container_width=True)
 
@@ -1068,8 +1068,8 @@ with tab_ledger:
                 <div>
                     <b style="color: #10b981; font-size: 16px;">✅ Double-Entry Accounting Invariant Mathematically Satisfied</b><br>
                     <span class="mono" style="font-size: 13px; color: #cbd5e1;">
-                        Total Debits (<b>€{stats['debits_sum']:,.2f}</b>) == Total Credits (<b>€{stats['credits_sum']:,.2f}</b>)
-                        | Exact Net Drift: <b>€0.00000000</b> (0 cents floating error)
+                        Total Debits (<b>₹{stats['debits_sum']:,.2f}</b>) == Total Credits (<b>₹{stats['credits_sum']:,.2f}</b>)
+                        | Exact Net Drift: <b>₹0.00000000</b> (0 paise floating error)
                     </span>
                 </div>
                 <div>
@@ -1080,7 +1080,7 @@ with tab_ledger:
             unsafe_allow_html=True,
         )
     else:
-        st.error(f"❌ Imbalance Warning: Debits (€{stats['debits_sum']:,.2f}) != Credits (€{stats['credits_sum']:,.2f})")
+        st.error(f"❌ Imbalance Warning: Debits (₹{stats['debits_sum']:,.2f}) != Credits (₹{stats['credits_sum']:,.2f})")
 
     # Cryptographic SHA-256 Ledger Blockchain Proof
     st.markdown("#### 🔒 Cryptographic SHA-256 Hash Chain (Immutable Audit Proof)")
@@ -1092,7 +1092,7 @@ with tab_ledger:
             crypto_df,
             use_container_width=True,
             column_config={
-                "Volume (€)": st.column_config.NumberColumn("Volume (€)", format="€%.2f"),
+                "Volume (₹)": st.column_config.NumberColumn("Volume (₹)", format="₹%.2f"),
                 "Tamper Verified": st.column_config.CheckboxColumn("Cryptographically Intact"),
             },
         )
@@ -1106,7 +1106,7 @@ with tab_ledger:
             col_src, col_dst, col_amt = st.columns([2, 2, 1])
             src_acc = col_src.selectbox("Source Account (Credit / Origin)", acc_options, index=0)
             dst_acc = col_dst.selectbox("Destination Account (Debit / Beneficiary)", acc_options, index=1)
-            tx_amount = col_amt.number_input("Amount (€)", min_value=1.0, max_value=50000.0, value=350.0, step=50.0)
+            tx_amount = col_amt.number_input("Amount (₹)", min_value=1.0, max_value=5000000.0, value=350.0, step=50.0)
             tx_desc = st.text_input("Transfer Description", value="Commercial Invoice Settlement #4402")
 
             if st.button("🚀 Commit Double-Entry Transfer", type="primary"):
@@ -1130,15 +1130,15 @@ with tab_ledger:
             st.dataframe(
                 pd.DataFrame(stats["recent_txns"]),
                 use_container_width=True,
-                column_config={"Amount (€)": st.column_config.NumberColumn("Amount (€)", format="€%.2f")},
+                column_config={"Amount (₹)": st.column_config.NumberColumn("Amount (₹)", format="₹%.2f")},
             )
     with c_tbl2:
         st.markdown("#### 🏦 Account Balances (Read Projections)")
         if stats["account_projections"]:
             st.dataframe(
-                pd.DataFrame(stats["account_projections"])[["Account ID", "Balance (€)", "Currency", "Status"]],
+                pd.DataFrame(stats["account_projections"])[["Account ID", "Balance (₹)", "Currency", "Status"]],
                 use_container_width=True,
-                column_config={"Balance (€)": st.column_config.NumberColumn("Balance (€)", format="€%.2f")},
+                column_config={"Balance (₹)": st.column_config.NumberColumn("Balance (₹)", format="₹%.2f")},
             )
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1220,12 +1220,12 @@ with tab_simulator:
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Simulated Scenario", sim["name"], f"{sim['count']} Total Vectors")
     m2.metric("Intercept Rate", f"{intercept_rate:.1f}%", f"{intercepted} Flagged Suspicious")
-    m3.metric("Prevented Loss", f"€{prevented_loss:,.2f}", "Capital Preserved")
+    m3.metric("Prevented Loss", f"₹{prevented_loss:,.2f}", "Capital Preserved")
     m4.metric("Avg Engine Latency", f"{avg_latency:.2f} ms", "Sub-5ms Guaranteed")
 
     # Scatter Distribution Plot (Amount vs Fraud Probability)
     sim_df = pd.DataFrame({
-        "Transaction Ticket (€)": sim["amounts"],
+        "Transaction Ticket (₹)": sim["amounts"],
         "Predicted Fraud Risk (%)": [p * 100 for p in sim["probs"]],
         "Verdict": ["FLAGGED SUSPICIOUS" if p >= opt_t else "APPROVED SETTLED" for p in sim["probs"]],
     })
@@ -1234,13 +1234,13 @@ with tab_simulator:
         alt.Chart(sim_df)
         .mark_circle(size=80, opacity=0.75)
         .encode(
-            x=alt.X("Transaction Ticket (€):Q", scale=alt.Scale(type="log", base=10), title="Ticket Amount (€) [Log Scale]"),
+            x=alt.X("Transaction Ticket (₹):Q", scale=alt.Scale(type="log", base=10), title="Ticket Amount (₹) [Log Scale]"),
             y=alt.Y("Predicted Fraud Risk (%):Q", title="Predicted Fraud Probability (%)"),
             color=alt.Color(
                 "Verdict:N",
                 scale=alt.Scale(domain=["FLAGGED SUSPICIOUS", "APPROVED SETTLED"], range=["#ef4444", "#3b82f6"]),
             ),
-            tooltip=["Transaction Ticket (€)", "Predicted Fraud Risk (%)", "Verdict"],
+            tooltip=["Transaction Ticket (₹)", "Predicted Fraud Risk (%)", "Verdict"],
         )
         .properties(height=320)
     )
@@ -1260,8 +1260,8 @@ with tab_frontier:
 
     with c_tune1:
         st.markdown("#### 🎛️ Cost Parameters & Operational Matrix")
-        cost_fp = st.slider("False Positive Friction Cost (Declining Legitimate User) [€]", 5, 50, 10, step=5)
-        cost_fn = st.slider("False Negative Fraud Chargeback Cost (Missed Fraud) [€]", 100, 1000, 250, step=25)
+        cost_fp = st.slider("False Positive Friction Cost (Declining Legitimate User) [₹]", 50, 500, 100, step=25)
+        cost_fn = st.slider("False Negative Fraud Chargeback Cost (Missed Fraud) [₹]", 1000, 10000, 2500, step=250)
 
         threshold_slider = st.slider(
             "Test Decision Threshold (τ)",
@@ -1280,9 +1280,9 @@ with tab_frontier:
         total_loss = (sim_fp * cost_fp) + (sim_fn * cost_fn)
 
         p1, p2, p3 = st.columns(3)
-        p1.metric("False Positives", sim_fp, f"€{sim_fp * cost_fp:,.0f} friction")
-        p2.metric("False Negatives", sim_fn, f"€{sim_fn * cost_fn:,.0f} loss")
-        p3.metric("Net Financial Loss", f"€{total_loss:,.0f}")
+        p1.metric("False Positives", sim_fp, f"₹{sim_fp * cost_fp:,.0f} friction")
+        p2.metric("False Negatives", sim_fn, f"₹{sim_fn * cost_fn:,.0f} loss")
+        p3.metric("Net Financial Loss", f"₹{total_loss:,.0f}")
 
         # Confusion Matrix
         st.markdown("##### 🔢 Confusion Matrix (10,000 Txn Sample)")
@@ -1301,24 +1301,24 @@ with tab_frontier:
             f_p = int(round(120 * ((1.0 - t) ** 1.8)))
             c_curve.append((f_p * cost_fp) + (f_n * cost_fn))
 
-        cost_df = pd.DataFrame({"Threshold (τ)": t_range, "Total Financial Loss (€)": c_curve})
+        cost_df = pd.DataFrame({"Threshold (τ)": t_range, "Total Financial Loss (₹)": c_curve})
 
         line_chart = (
             alt.Chart(cost_df)
             .mark_line(color="#a78bfa", strokeWidth=3)
             .encode(
                 x=alt.X("Threshold (τ):Q", title="Decision Threshold (τ)"),
-                y=alt.Y("Total Financial Loss (€):Q", title="Total Expected Loss (€)"),
-                tooltip=["Threshold (τ)", "Total Financial Loss (€)"],
+                y=alt.Y("Total Financial Loss (₹):Q", title="Total Expected Loss (₹)"),
+                tooltip=["Threshold (τ)", "Total Financial Loss (₹)"],
             )
             .properties(height=260)
         )
 
         min_idx = int(np.argmin(c_curve))
-        opt_pt = pd.DataFrame([{"Threshold (τ)": t_range[min_idx], "Total Financial Loss (€)": c_curve[min_idx]}])
+        opt_pt = pd.DataFrame([{"Threshold (τ)": t_range[min_idx], "Total Financial Loss (₹)": c_curve[min_idx]}])
         opt_circle = alt.Chart(opt_pt).mark_point(color="#10b981", size=140, filled=True).encode(
             x="Threshold (τ):Q",
-            y="Total Financial Loss (€):Q",
+            y="Total Financial Loss (₹):Q",
         )
 
         st.altair_chart(line_chart + opt_circle, use_container_width=True)
@@ -1396,7 +1396,7 @@ with tab_ai:
 - **Risk Rating**: **CRITICAL** (Fraud Probability: 99.12%)
 
 #### 2. SUSPICIOUS ACTIVITY SUMMARY
-- **Transaction Amount**: **€3,200.00**
+- **Transaction Amount**: **₹3,200.00**
 - **Typology**: Coordinated Midnight ATM Cashout Outlier
 - **Execution Timestamp**: 03:14:22 UTC
 - **Statistical Anomaly Indicators**:
@@ -1412,7 +1412,7 @@ with tab_ai:
             evidence_dict = {
                 "incident_id": "INC-8901",
                 "fraud_probability": 0.9912,
-                "amount_eur": 3200.00,
+                "amount_inr": 3200.00,
                 "filing_status": "DRAFTED_FOR_TRANSMISSION",
                 "ledger_state": "FROZEN",
                 "verified_at": t_now,
@@ -1421,9 +1421,9 @@ with tab_ai:
         elif any(k in txt_lower for k in ["invariant", "equilibrium", "drift", "debit", "credit"]):
             ans = f"""
 **Double-Entry Invariant Audit Report**:
-- **Total Debits**: €{stats['debits_sum']:,.2f}
-- **Total Credits**: €{stats['credits_sum']:,.2f}
-- **Mathematical Drift ($\\Delta$)**: **€0.00000000** (Zero Cents)
+- **Total Debits**: ₹{stats['debits_sum']:,.2f}
+- **Total Credits**: ₹{stats['credits_sum']:,.2f}
+- **Mathematical Drift ($\\Delta$)**: **₹0.00000000** (Zero Paise)
 - **Status**: **100% BALANCED**
 
 Every transaction contains equal debit and credit legs. Balance projections match the event-sourced journal exactly.
@@ -1439,14 +1439,14 @@ Every transaction contains equal debit and credit legs. Balance projections matc
         elif any(k in txt_lower for k in ["volume", "turnover", "settled", "overview"]):
             ans = f"""
 **Platform Settlement Overview**:
-- **Total Settled Turnover**: **€{stats['settled_volume']:,.2f}**
+- **Total Settled Turnover**: **₹{stats['settled_volume']:,.2f}**
 - **Registered Accounts**: {stats['total_accounts']}
 - **Posted Journal Transactions**: {stats['total_transactions']}
-- **Average Ticket Size**: €{stats['avg_transaction']:,.2f}
+- **Average Ticket Size**: ₹{stats['avg_transaction']:,.2f}
 - **Ledger Health**: Exact double-entry equilibrium confirmed.
 """
             evidence_dict = {
-                "total_volume_eur": stats["settled_volume"],
+                "total_volume_inr": stats["settled_volume"],
                 "total_accounts": stats["total_accounts"],
                 "verified_at": t_now,
             }
@@ -1455,9 +1455,9 @@ Every transaction contains equal debit and credit legs. Balance projections matc
             ans = """
 **Anti-Money Laundering (AML) Intelligence Brief**:
 - **Monitored Rings**: 3 active mule clusters identified in current settlement window.
-- **Structuring Detection**: High concentration of transfers in the €9,800 - €9,950 range designed to evade statutory €10,000 reporting thresholds.
+- **Structuring Detection**: High concentration of transfers in the ₹9,80,000 - ₹9,95,000 range designed to evade statutory ₹10,00,000 reporting thresholds.
 - **Layering Velocity**: Average time-to-drain between inbound credit and outbound pass-through is **4.2 minutes**.
-- **Automated Mitigation**: Intercepted €142,500.00 across 5 high-risk hops.
+- **Automated Mitigation**: Intercepted ₹14,25,000.00 across 5 high-risk hops.
 """
             evidence_dict = {
                 "aml_clusters_active": 3,
@@ -1469,7 +1469,7 @@ Every transaction contains equal debit and credit legs. Balance projections matc
         else:
             ans = (
                 f"LedgerMind AI Copilot: Real-time query processed. System currently monitors {stats['total_accounts']} "
-                f"accounts with €{stats['settled_volume']:,.2f} settled volume and 0 accounting drift. "
+                f"accounts with ₹{stats['settled_volume']:,.2f} settled volume and 0 accounting drift. "
                 "Ask me to draft a SAR report, audit double-entry invariants, or summarize AML anomalies."
             )
             evidence_dict = {"general_query": user_text, "accounts": stats["total_accounts"]}

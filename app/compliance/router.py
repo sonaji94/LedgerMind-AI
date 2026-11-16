@@ -45,7 +45,8 @@ class StepUp2FARequest(BaseModel):
 class SARGenerateRequest(BaseModel):
     incident_id: str
     account_id: str
-    amount_eur: float
+    amount_eur: float = 0.0
+    amount_inr: float | None = None
     fraud_probability: float
     detected_typology: str
     red_flag_indicators: list[str]
@@ -195,7 +196,7 @@ async def generate_sar_report_endpoint(
 
 #### PART II: SUSPICIOUS ACTIVITY INFORMATION
 - **Suspicious Incident ID**: `{payload.incident_id}`
-- **Aggregate Outlier Volume**: `€{payload.amount_eur:,.2f}`
+- **Aggregate Outlier Volume**: `₹{payload.amount_inr if payload.amount_inr is not None else payload.amount_eur:,.2f}`
 - **Identified Typology**: `{payload.detected_typology}`
 - **Observed Statistical Anomaly Signals**:
 """

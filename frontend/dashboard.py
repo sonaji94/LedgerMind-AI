@@ -242,8 +242,8 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Timestamp": str(r[2])[:19] if r[2] else "N/A",
                 "Debit Account": str(r[3]),
                 "Credit Account": str(r[4]),
-                "Amount (€)": float(r[5] or 0) / 100.0,
-                "Minor Units": r[5] or 0,
+                "Amount (₹)": float(r[5] or 0) / 100.0,
+                "Minor Units (Paise)": r[5] or 0,
                 "Status": "SETTLED_POSTED",
             }
             for r in recent_rows
@@ -263,8 +263,8 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Account ID": str(p[0]),
                 "Currency": p[1],
                 "Status": p[2],
-                "Balance (€)": float(p[3] or 0) / 100.0,
-                "Minor Units": p[3] or 0,
+                "Balance (₹)": float(p[3] or 0) / 100.0,
+                "Minor Units (Paise)": p[3] or 0,
                 "Version": p[4],
                 "Owner ID": str(p[5]),
             }
@@ -292,7 +292,7 @@ def get_live_ledger_data() -> dict[str, Any]:
                 "Block #": idx + 1,
                 "Transaction ID": str(t_id)[:12] + "...",
                 "Posted UTC": str(t_time)[:19] if t_time else "N/A",
-                "Volume (€)": float(t_minor or 0) / 200.0,
+                "Volume (₹)": float(t_minor or 0) / 200.0,
                 "Prev Hash": prev_hash[:16] + "...",
                 "Block Hash (SHA-256)": block_hash[:20] + "...",
                 "Tamper Verified": True,
@@ -382,13 +382,13 @@ if "incident_queue" not in st.session_state:
             "origin_acc": "acc-treasury-reserve-01",
             "dest_acc": "acc-atm-offshore-04",
             "signals": {
-                "geo_speed": "980 km/h (Frankfurt -> Singapore in 45m)",
+                "geo_speed": "980 km/h (Frankfurt -> Mumbai in 45m)",
                 "velocity_1m": "3 Failed PINs in 45 seconds",
                 "device_status": "Unrecognized ATM Hardware",
-                "amount_deviation": "26.6x user 30-day baseline (€120.00)",
+                "amount_deviation": "26.6x user 30-day baseline (₹120.00)",
             },
             "top_drivers": [
-                {"label": "Impossible Geo-Velocity (Frankfurt -> Singapore)", "value": 980.0, "impact": "INCREASES_RISK", "shap_value": 0.44},
+                {"label": "Impossible Geo-Velocity (Frankfurt -> Mumbai)", "value": 980.0, "impact": "INCREASES_RISK", "shap_value": 0.44},
                 {"label": "Amount Deviation vs 30d Baseline (26.6x)", "value": 26.6, "impact": "INCREASES_RISK", "shap_value": 0.36},
                 {"label": "Sub-60s PIN Failure Burst", "value": 3.0, "impact": "INCREASES_RISK", "shap_value": 0.28},
             ],
@@ -397,7 +397,7 @@ if "incident_queue" not in st.session_state:
         {
             "id": "INC-8902",
             "title": "Velocity Smurfing Surge (Card-Testing Botnet)",
-            "amount": 1.05,
+            "amount": 105.00,
             "timestamp": "Today, 04:02:11 UTC",
             "probability": 0.7245,
             "decision": "STEP_UP_2FA",
@@ -409,7 +409,7 @@ if "incident_queue" not in st.session_state:
                 "geo_speed": "Static IP Cluster",
                 "velocity_1m": "48 micro-charges in 60 seconds",
                 "device_status": "Tor Exit Node / Datacenter Proxy",
-                "amount_deviation": "Micro-auth probing ($0.50 - $1.50)",
+                "amount_deviation": "Micro-auth probing (₹50.00 - ₹150.00)",
             },
             "top_drivers": [
                 {"label": "Velocity Smurfing Spike (48 charges/60s)", "value": 48.0, "impact": "INCREASES_RISK", "shap_value": 0.41},
@@ -476,11 +476,11 @@ st.markdown(
 
 # ── 4. Executive KPI Ribbon ──────────────────────────────────────────
 k1, k2, k3, k4, k5 = st.columns(5)
-k1.markdown(f'<div class="kpi-card"><div class="kpi-label">Monitored Volume</div><div class="kpi-value">€{stats["settled_volume"]:,.2f}</div><div class="kpi-sub">Authoritative Ledger</div></div>', unsafe_allow_html=True)
+k1.markdown(f'<div class="kpi-card"><div class="kpi-label">Monitored Volume</div><div class="kpi-value">₹{stats["settled_volume"]:,.2f}</div><div class="kpi-sub">Authoritative Ledger</div></div>', unsafe_allow_html=True)
 k2.markdown(f'<div class="kpi-card"><div class="kpi-label">Active Accounts</div><div class="kpi-value">{stats["total_accounts"]}</div><div class="kpi-sub">Institutional Tier</div></div>', unsafe_allow_html=True)
 k3.markdown(f'<div class="kpi-card"><div class="kpi-label">Triage Alert Queue</div><div class="kpi-value" style="color: {"#ef4444" if open_incidents > 0 else "#10b981"};">{open_incidents} Active</div><div class="kpi-sub">Pending Compliance</div></div>', unsafe_allow_html=True)
 k4.markdown(f'<div class="kpi-card"><div class="kpi-label">Inference Latency</div><div class="kpi-value">{p50_lat:.2f} ms</div><div class="kpi-sub">p95: {p95_lat:.2f}ms (Sub-5ms SLA)</div></div>', unsafe_allow_html=True)
-k5.markdown('<div class="kpi-card"><div class="kpi-label">Accounting Drift</div><div class="kpi-value" style="color: #10b981;">€0.00</div><div class="kpi-sub">Exact Invariant</div></div>', unsafe_allow_html=True)
+k5.markdown('<div class="kpi-card"><div class="kpi-label">Accounting Drift</div><div class="kpi-value" style="color: #10b981;">₹0.00</div><div class="kpi-sub">Exact Invariant</div></div>', unsafe_allow_html=True)
 
 st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
 
@@ -536,7 +536,7 @@ with tab_triage:
                             <b style="font-size: 16px; margin-left: 10px; color: #f8fafc;">{inc['id']}: {inc['title']}</b>
                         </div>
                         <div style="font-size: 18px; font-weight: 800; font-family: 'JetBrains Mono'; color: {'#ef4444' if inc['probability'] >= 0.45 else '#10b981'};">
-                            €{inc['amount']:,.2f} | Risk: {inc['probability'] * 100:.1f}%
+                            ₹{inc['amount']:,.2f} | Risk: {inc['probability'] * 100:.1f}%
                         </div>
                     </div>
                 </div>
@@ -608,14 +608,14 @@ with tab_investigate:
 
     with c_inputs:
         st.markdown("#### 👤 Human-Readable Risk Factors")
-        amt = st.number_input("Transaction Ticket (€)", min_value=1.0, max_value=250000.0, value=float(st.session_state.get("inv_amount", 3204.0)), step=50.0)
+        amt = st.number_input("Transaction Ticket (₹)", min_value=1.0, max_value=25000000.0, value=float(st.session_state.get("inv_amount", 3204.0)), step=50.0)
         channel = st.selectbox("Transaction Channel", ["ONLINE_CNP (Card Not Present)", "POS_CHIP (Physical Terminal)", "WIRE_TRANSFER", "ATM_CASHOUT"])
         in_hour = st.slider("Time of Execution (24-Hour Cycle UTC)", 0, 23, int(st.session_state.get("inv_hour", 14)))
         geo_speed = st.slider("Calculated Geo-Velocity (km/h between swipes)", 0, 1200, int(st.session_state.get("inv_geo", 950)), step=25)
         vel_1m = st.slider("Transaction Velocity (Authorizations in last 60s)", 1, 60, int(st.session_state.get("inv_vel", 3)), step=1)
         is_new_device = st.checkbox("Unrecognized Device Fingerprint / Tor Exit Node", value=st.session_state.get("inv_device", True))
         dev_ratio = amt / 120.0
-        st.caption(f"📊 Amount is **{dev_ratio:.1f}x** user 30-day baseline average (€120.00).")
+        st.caption(f"📊 Amount is **{dev_ratio:.1f}x** user 30-day baseline average (₹120.00).")
 
         # ── Collapsible Advanced Model Diagnostics Drawer ──────────
         with st.expander("🛠️ Advanced Model Diagnostics (Raw PCA Vectors V1 - V28)", expanded=False):
@@ -748,14 +748,14 @@ with tab_aml:
     a1.metric("Active Mule Clusters", "3 Monitored Rings", "14 Identified Nodes")
     a2.metric("Structuring Fan-Out", "1 : 6 Accounts", "Layering Inbound")
     a3.metric("Time-To-Drain", "4.2 Minutes", "Rapid Pass-Through")
-    a4.metric("Prevented Laundering", "€142,500.00", "Funds Quarantined")
+    a4.metric("Prevented Laundering", "₹14,25,000.00", "Funds Quarantined")
 
     flow_nodes = pd.DataFrame([
-        {"Node": "1. Syndicate Master", "Role": "Infiltration Hub", "Capital (€)": 95000, "X": 10, "Y": 50},
-        {"Node": "2. Layering Mule A", "Role": "Smurfing Drop 1", "Capital (€)": 28000, "X": 45, "Y": 80},
-        {"Node": "3. Layering Mule B", "Role": "Smurfing Drop 2", "Capital (€)": 34000, "X": 45, "Y": 50},
-        {"Node": "4. Layering Mule C", "Role": "Smurfing Drop 3", "Capital (€)": 33000, "X": 45, "Y": 20},
-        {"Node": "5. Crypto Gateway", "Role": "Offshore Liquidator", "Capital (€)": 95000, "X": 85, "Y": 50},
+        {"Node": "1. Syndicate Master", "Role": "Infiltration Hub", "Capital (₹)": 950000, "X": 10, "Y": 50},
+        {"Node": "2. Layering Mule A", "Role": "Smurfing Drop 1", "Capital (₹)": 280000, "X": 45, "Y": 80},
+        {"Node": "3. Layering Mule B", "Role": "Smurfing Drop 2", "Capital (₹)": 340000, "X": 45, "Y": 50},
+        {"Node": "4. Layering Mule C", "Role": "Smurfing Drop 3", "Capital (₹)": 330000, "X": 45, "Y": 20},
+        {"Node": "5. Crypto Gateway", "Role": "Offshore Liquidator", "Capital (₹)": 950000, "X": 85, "Y": 50},
     ])
 
     flow_chart = (
@@ -764,7 +764,7 @@ with tab_aml:
         .encode(
             x=alt.X("X:Q", scale=alt.Scale(domain=[0, 100]), axis=None),
             y=alt.Y("Y:Q", scale=alt.Scale(domain=[0, 100]), axis=None),
-            tooltip=["Node", "Role", "Capital (€)"],
+            tooltip=["Node", "Role", "Capital (₹)"],
         )
         .properties(height=320)
     )
@@ -780,11 +780,11 @@ with tab_ledger:
     if stats["is_balanced"]:
         st.success(
             f"✅ **DOUBLE-ENTRY INVARIANT STRICTLY SATISFIED**: "
-            f"Total Debits (€{stats['debits_sum']:,.2f}) == Total Credits (€{stats['credits_sum']:,.2f}) "
-            f"| Exact Mathematical Drift: €0.00000000 (0 floating error)"
+            f"Total Debits (₹{stats['debits_sum']:,.2f}) == Total Credits (₹{stats['credits_sum']:,.2f}) "
+            f"| Exact Mathematical Drift: ₹0.00000000 (0 paise floating error)"
         )
     else:
-        st.error(f"❌ Imbalance Warning: Debits (€{stats['debits_sum']:,.2f}) != Credits (€{stats['credits_sum']:,.2f})")
+        st.error(f"❌ Imbalance Warning: Debits (₹{stats['debits_sum']:,.2f}) != Credits (₹{stats['credits_sum']:,.2f})")
 
     st.markdown("#### 🔒 SHA-256 Block Hash Chain (Immutable Ledger Audit)")
     if stats["crypto_blocks"]:
@@ -849,7 +849,7 @@ with tab_ai:
             res = api_client.generate_sar(
                 incident_id=sar_inc,
                 account_id="acc-treasury-reserve-01",
-                amount_eur=3200.00,
+                amount_inr=3200.00,
                 fraud_probability=0.9912,
                 detected_typology="Coordinated Midnight ATM Cashout Anomaly",
                 red_flag_indicators=[

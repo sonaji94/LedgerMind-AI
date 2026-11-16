@@ -61,7 +61,7 @@ class BackendAPIClient:
             "source_account_id": source_account_id,
             "destination_account_id": destination_account_id,
             "amount_minor_units": amount_minor_units,
-            "currency": "EUR",
+            "currency": "INR",
             "description": description,
         }
         res = self._client.post("/transfers", json=payload)
@@ -83,20 +83,23 @@ class BackendAPIClient:
         self,
         incident_id: str,
         account_id: str,
-        amount_eur: float,
-        fraud_probability: float,
-        detected_typology: str,
-        red_flag_indicators: list[str],
+        amount_inr: float = 3200.00,
+        fraud_probability: float = 0.9912,
+        detected_typology: str = "Coordinated Midnight ATM Cashout Anomaly",
+        red_flag_indicators: list[str] | None = None,
         apply_pii_masking: bool = True,
+        amount_eur: float | None = None,
     ) -> dict[str, Any]:
-        """Generate FinCEN SAR report with PII masking."""
+        """Generate FinCEN / FIU SAR report with PII masking."""
+        amt = amount_inr if amount_inr is not None else (amount_eur or 3200.0)
         payload = {
             "incident_id": incident_id,
             "account_id": account_id,
-            "amount_eur": amount_eur,
+            "amount_eur": amt,
+            "amount_inr": amt,
             "fraud_probability": fraud_probability,
             "detected_typology": detected_typology,
-            "red_flag_indicators": red_flag_indicators,
+            "red_flag_indicators": red_flag_indicators or [],
             "apply_pii_masking": apply_pii_masking,
             "justification_reason": "Statutory reporting of high-risk outlier pattern",
         }
