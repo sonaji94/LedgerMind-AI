@@ -608,7 +608,7 @@ with tab_investigate:
 
     with c_inputs:
         st.markdown("#### 👤 Human-Readable Risk Factors")
-        amt = st.number_input("Transaction Ticket (₹)", min_value=1.0, max_value=25000000.0, value=float(st.session_state.get("inv_amount", 3204.0)), step=50.0)
+        amt = st.number_input("Transaction Ticket Amount (₹)", min_value=1.0, max_value=25000000.0, value=float(st.session_state.get("inv_amount", 3204.0)), step=50.0)
         channel = st.selectbox("Transaction Channel", ["ONLINE_CNP (Card Not Present)", "POS_CHIP (Physical Terminal)", "WIRE_TRANSFER", "ATM_CASHOUT"])
         in_hour = st.slider("Time of Execution (24-Hour Cycle UTC)", 0, 23, int(st.session_state.get("inv_hour", 14)))
         geo_speed = st.slider("Calculated Geo-Velocity (km/h between swipes)", 0, 1200, int(st.session_state.get("inv_geo", 950)), step=25)
@@ -770,6 +770,16 @@ with tab_aml:
     )
     text_chart = alt.Chart(flow_nodes).mark_text(dy=32, color="#f8fafc", fontSize=12, fontWeight="bold").encode(x="X:Q", y="Y:Q", text="Node:N")
     st.altair_chart(flow_chart + text_chart, use_container_width=True)
+
+    st.markdown("#### 📋 Flagged AML Network Transactions (Structuring Audit)")
+    mule_txns = pd.DataFrame([
+        {"Hop": "1 → 2", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-alpha-02", "Amount (₹)": 985000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "1 → 3", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-bravo-03", "Amount (₹)": 992000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "1 → 4", "Origin Account": "acc-syndicate-master-01", "Target Account": "acc-mule-charlie-04", "Amount (₹)": 989000.00, "Structuring Signal": "Just under ₹10,00,000 threshold", "Action": "FROZEN"},
+        {"Hop": "2 → 5", "Origin Account": "acc-mule-alpha-02", "Target Account": "acc-crypto-offshore-99", "Amount (₹)": 980000.00, "Structuring Signal": "Instant 120s pass-through drain", "Action": "INTERCEPTED"},
+        {"Hop": "3 → 5", "Origin Account": "acc-mule-bravo-03", "Target Account": "acc-crypto-offshore-99", "Amount (₹)": 990000.00, "Structuring Signal": "Instant 180s pass-through drain", "Action": "INTERCEPTED"},
+    ])
+    st.dataframe(mule_txns, use_container_width=True)
 
 # ═════════════════════════════════════════════════════════════════════
 # TAB 5: Ledger & Cryptographic Proof

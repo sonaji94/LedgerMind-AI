@@ -13,8 +13,13 @@ jobs:
       PYTHONPATH: .
       MYPYPATH: .
       APP_ENV: testing
+      ENVIRONMENT: test
+      SECRET_KEY: test-secret-key-at-least-32-chars-long
+      CORS_ORIGINS: http://localhost:8501
       DATABASE_URL: sqlite+aiosqlite:///./test_ci.db
       DATABASE_URL_SYNC: sqlite:///./test_ci.db
+      RAZORPAY_WEBHOOK_SECRET: rzp_whsec_test_secret_key_12345
+      DISABLE_SQLALCHEMY_CEXT: "1"
     strategy:
       matrix:
         python-version: ["3.12"]
@@ -33,6 +38,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,dashboard,mlops]"
+
+      - name: Train and Export Production ONNX Hybrid Models
+        run: |
+          python ml/train.py
+          python ml/export_onnx.py
 
       - name: Run Ruff Linter
         run: ruff check .

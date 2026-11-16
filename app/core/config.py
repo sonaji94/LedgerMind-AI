@@ -11,7 +11,7 @@ Production safety rules enforced at startup:
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # ── Application ───────────────────────────────────────────────
     app_name: str = "LedgerMind AI"
     app_env: Literal["development", "testing", "staging", "production"] = "development"
+    environment: str | None = None
     debug: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
@@ -87,6 +88,29 @@ class Settings(BaseSettings):
     def validate_secret_key(cls, v: str) -> str:
         """Block insecure placeholder keys in non-development environments."""
         return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_environment(cls, data: Any) -> Any:
+        """Normalize environment aliases (e.g. ENVIRONMENT=test -> app_env=testing)."""
+        if isinstance(data, dict):
+            raw_env = (
+                data.get("environment")
+                or data.get("ENVIRONMENT")
+                or data.get("app_env")
+                or data.get("APP_ENV")
+            )
+            if raw_env:
+                norm = str(raw_env).lower().strip()
+                if norm in ("test", "testing"):
+                    data["app_env"] = "testing"
+                elif norm in ("dev", "development"):
+                    data["app_env"] = "development"
+                elif norm in ("stage", "staging"):
+                    data["app_env"] = "staging"
+                elif norm in ("prod", "production"):
+                    data["app_env"] = "production"
+        return data
 
     @model_validator(mode="after")
     def resolve_database_and_security(self) -> "Settings":
